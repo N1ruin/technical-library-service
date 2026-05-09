@@ -1,10 +1,19 @@
 databaseChangeLog:
   - changeSet:
+      id: 0
+      author: niruin
+      comment: init schema
+      changes:
+        - sql:
+            sql: CREATE SCHEMA library
+
+  - changeSet:
       id: 1
       author: niruin
-      comment: init tables
+      comment: initial database
       changes:
         - createTable:
+            schemaName: library
             tableName: equipment
             columns:
               - column:
@@ -25,33 +34,29 @@ databaseChangeLog:
                   constraints:
                     unique: true
               - column:
-                  name: status
-                  type: VARCHAR(50)
-                  constraints:
-                    nullable: false
-              - column:
                   name: description
-                  type: TEXT
+                  type: VARCHAR(200)
               - column:
                   name: image_url
-                  type: VARCHAR(500)
+                  type: VARCHAR(255)
               - column:
                   name: type
-                  type: VARCHAR(50)
+                  type: VARCHAR(30)
               - column:
-                  name: created_at
+                  name: created_date
                   type: TIMESTAMP
                   constraints:
                     nullable: false
                   defaultValueComputed: "CURRENT_TIMESTAMP"
               - column:
-                  name: updated_at
+                  name: updated_date
                   type: TIMESTAMP
                   constraints:
                     nullable: false
                   defaultValueComputed: "CURRENT_TIMESTAMP"
 
         - createTable:
+            schemaName: library
             tableName: material
             columns:
               - column:
@@ -78,19 +83,53 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
-                  name: created_at
+                  name: created_date
                   type: TIMESTAMP
                   constraints:
                     nullable: false
                   defaultValueComputed: "CURRENT_TIMESTAMP"
               - column:
-                  name: updated_at
+                  name: updated_date
                   type: TIMESTAMP
                   constraints:
                     nullable: false
                   defaultValueComputed: "CURRENT_TIMESTAMP"
 
-        - addUniqueConstraint:
-            tableName: material
-            constraintName: name_standard_unique_constr
-            columnNames: name, standard
+              - addUniqueConstraint:
+                  schemaName: library
+                  tableName: material
+                  constraintName: name_standard_unique_constr
+                  columnNames: name, standard
+
+        - createTable:
+            schemaName: library
+            tableName: safety_instruction
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: number
+                  type: VARCHAR(10)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: description
+                  type: VARCHAR(200)
+              - column:
+                  name: created_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: "CURRENT_TIMESTAMP"
+              - column:
+                  name: updated_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: "CURRENT_TIMESTAMP"

@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
+    restart: always
     container_name: postgres
     environment:
       POSTGRES_USER: root
@@ -9,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data/pgdata
+      - db_data:/var/lib/postgresql/data
 
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U root -d library_db" ]
@@ -18,4 +19,4 @@ services:
       retries: 5
 
 volumes:
-  pgdata:
+  db_data:

@@ -22,6 +22,7 @@ ext {
 }
 
 dependencies {
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-kafka'
@@ -30,6 +31,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
 	implementation 'org.mapstruct:mapstruct:1.6.3'
+	implementation 'org.springframework:spring-aspects'
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
@@ -42,6 +44,7 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-kafka'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
