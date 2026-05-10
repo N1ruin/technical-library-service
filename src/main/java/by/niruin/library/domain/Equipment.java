@@ -18,10 +18,10 @@ public class Equipment {
     private String name;
     @Column(unique = true)
     private String index;
-    @Column(length = 200)//todo добавить в миграцию
+    @Column(length = 200)
     private String description;
-    @Column(name = "image_url")
-    private String imageUrl;
+    @Column(name = "image_name")
+    private String imageName;
     @Enumerated(EnumType.STRING)
     @Column(length = 30)
     private EquipmentType type;
@@ -60,12 +60,12 @@ public class Equipment {
         this.description = description;
     }
 
-    public String getImageUrl() {
-        return imageUrl;
+    public String getImageName() {
+        return imageName;
     }
 
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
+    public void setImageName(String imageName) {
+        this.imageName = imageName;
     }
 
     public EquipmentType getType() {

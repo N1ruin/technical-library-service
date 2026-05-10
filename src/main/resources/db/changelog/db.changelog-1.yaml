@@ -37,7 +37,7 @@ databaseChangeLog:
                   name: description
                   type: VARCHAR(200)
               - column:
-                  name: image_url
+                  name: image_name
                   type: VARCHAR(255)
               - column:
                   name: type

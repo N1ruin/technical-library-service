@@ -1,4 +1,4 @@
-package by.niruin.library.integration.equipment;
+package by.niruin.library.integration;
 
 import by.niruin.library.domain.Material;
 import by.niruin.library.service.MaterialService;
@@ -6,24 +6,15 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@Testcontainers
-@AutoConfigureMockMvc(printOnlyOnFailure = false)
-@Transactional
 public class MaterialControllerIT extends BaseTest {
-    @Autowired
-    static PostgreSQLContainer postgreSQLContainer;
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -64,7 +55,7 @@ public class MaterialControllerIT extends BaseTest {
     }
 
     @Test
-    void createMaterial_returnCreatedMaterial() throws Exception {
+    void createMaterial_shouldReturnSavedMaterial() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_LITOL_JSON);

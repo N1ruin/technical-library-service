@@ -12,5 +12,13 @@ spring:
       hibernate:
         default_schema: library
 debug: false
+
 server:
   port: 8082
+
+minio:
+  endpoint: http://localhost:9000/
+  user: admin
+  password: adminpass
+  bucketName: equipments
+  maxFileSize: 2097152

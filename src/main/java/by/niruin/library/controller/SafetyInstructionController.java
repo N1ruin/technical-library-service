@@ -2,9 +2,9 @@ package by.niruin.library.controller;
 
 import by.niruin.library.mapper.SafetyInstructionMapper;
 import by.niruin.library.model.instruction.CreateSafetyInstructionRequest;
+import by.niruin.library.model.instruction.CreateSafetyInstructionResponse;
+import by.niruin.library.model.instruction.SafetyInstructionDto;
 import by.niruin.library.model.instruction.UpdateSafetyInstructionRequest;
-import by.niruin.library.model.material.CreateMaterialResponse;
-import by.niruin.library.model.material.MaterialDto;
 import by.niruin.library.service.SafetyInstructionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
+@RequestMapping("/api/v1/library-service/safety-instructions")
 public class SafetyInstructionController {
     private final SafetyInstructionService safetyInstructionService;
     private final SafetyInstructionMapper safetyInstructionMapper;
@@ -25,7 +26,7 @@ public class SafetyInstructionController {
     }
 
     @PostMapping
-    public ResponseEntity<CreateMaterialResponse> createMaterial(@Valid @RequestBody CreateSafetyInstructionRequest request) {
+    public ResponseEntity<CreateSafetyInstructionResponse> createMaterial(@Valid @RequestBody CreateSafetyInstructionRequest request) {
         var material = safetyInstructionMapper.toInstruction(request);
 
         var created = safetyInstructionService.save(material);
@@ -37,7 +38,7 @@ public class SafetyInstructionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<MaterialDto> findById(@PathVariable Long id) {
+    public ResponseEntity<SafetyInstructionDto> findById(@PathVariable Long id) {
         var instruction = safetyInstructionService.findById(id);
 
         var response = safetyInstructionMapper.toDto(instruction);
@@ -46,7 +47,7 @@ public class SafetyInstructionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<MaterialDto>> findAll() {
+    public ResponseEntity<List<SafetyInstructionDto>> findAll() {
         var instructions = safetyInstructionService.findAll();
 
         var dtoList = safetyInstructionMapper.toDtoList(instructions);
@@ -55,8 +56,8 @@ public class SafetyInstructionController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<MaterialDto> update(@PathVariable Long id,
-                                              @Valid @RequestBody UpdateSafetyInstructionRequest request) {
+    public ResponseEntity<SafetyInstructionDto> update(@PathVariable Long id,
+                                                       @Valid @RequestBody UpdateSafetyInstructionRequest request) {
         var updated = safetyInstructionService.update(id, request);
 
         var response = safetyInstructionMapper.toDto(updated);

@@ -48,7 +48,8 @@ public class SafetyInstructionService {
         var instruction = instructionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
 
-        if (instructionRepository.existsByNumber(request.number())) {
+        if (!instruction.getNumber().equals(request.number()) &&
+                instructionRepository.existsByNumber(request.number())) {
             throw new EntityAlreadyExistException();
         }
 

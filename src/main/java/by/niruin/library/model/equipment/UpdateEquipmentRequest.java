@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Pattern;
 import org.hibernate.validator.constraints.Length;
 import org.springframework.web.multipart.MultipartFile;
 
-public record CreateEquipmentRequest(
+public record UpdateEquipmentRequest(
         @NotNull
         String name,
         @NotNull

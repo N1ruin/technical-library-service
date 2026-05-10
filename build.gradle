@@ -22,6 +22,7 @@ ext {
 }
 
 dependencies {
+	implementation("io.minio:minio:9.0.0")
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
@@ -44,6 +45,7 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-kafka'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testImplementation("org.testcontainers:testcontainers-minio:2.0.3")
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

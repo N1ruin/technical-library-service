@@ -63,7 +63,8 @@ public class MaterialService {
         var material = materialRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
 
-        if (materialRepository.existsByNameAndStandard(request.name(), request.standard())) {
+        if (isNameOrStandardChanged(material, request)
+                && materialRepository.existsByNameAndStandard(request.name(), request.standard())) {
             throw new EntityAlreadyExistException();
         }
 
@@ -73,6 +74,13 @@ public class MaterialService {
 //        kafkaTemplate.send(MATERIAL_TOPIC, event);
 
         return material;
+    }
+
+    private boolean isNameOrStandardChanged(Material material, UpdateMaterialRequest request) {
+        boolean isNameChanged = !material.getName().equals(request.name());
+        boolean isStandardChanged = !material.getStandard().equals(request.standard());
+
+        return isNameChanged || isStandardChanged;
     }
 
     private void updateFields(Material oldMaterial, UpdateMaterialRequest request) {
