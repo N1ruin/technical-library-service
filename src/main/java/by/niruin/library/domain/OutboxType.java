@@ -1,4 +1,4 @@
 package by.niruin.library.domain;
 
-public enum TaskType {
+public enum OutboxType {
 }
