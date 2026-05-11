@@ -11,6 +11,23 @@ spring:
     properties:
       hibernate:
         default_schema: library
+  kafka:
+    bootstrap-servers:  localhost:9092
+    consumer:
+      group-id:  sample-consumer-group
+      auto-offset-reset:  earliest
+      key-deserializer:  org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer:  org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages:  '*'
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        retry.backoff.ms: 1000
+        delivery.timeout.ms: 30000
+      key-serializer:  org.apache.kafka.common.serialization.StringSerializer
+      value-serializer:  org.springframework.kafka.support.serializer.JsonSerializer
 debug: false
 
 server:
@@ -22,3 +39,4 @@ minio:
   password: adminpass
   bucketName: equipments
   maxFileSize: 2097152
+

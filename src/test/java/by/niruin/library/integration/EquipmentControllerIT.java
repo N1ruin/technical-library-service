@@ -2,6 +2,8 @@ package by.niruin.library.integration;
 
 import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
+import by.niruin.library.domain.EventType;
+import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.EquipmentService;
 import io.minio.*;
 import io.minio.errors.MinioException;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -36,7 +39,11 @@ public class EquipmentControllerIT extends BaseTest {
     private MinioClient minioClient;
     @Autowired
     static MinIOContainer minIOContainer;
+    @Autowired
+    private TransactionOutboxRepository outboxRepository;
 
+    @Autowired
+    private KafkaTemplate<String, String> kafkaTemplate;
     @BeforeEach
     void cleanDatabase() throws MinioException {
         em.createNativeQuery("TRUNCATE TABLE library.equipment RESTART IDENTITY CASCADE")
@@ -51,6 +58,27 @@ public class EquipmentControllerIT extends BaseTest {
                             .build()
             );
         }
+    }
+
+    @Test
+    void shouldCreateMaterialAndSaveToOutbox() throws Exception {
+        String materialJson = """
+                {
+                    "name": "Steel",
+                    "description": "High carbon steel"
+                }
+                """;
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/materials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(materialJson))
+                .andExpect(status().isCreated());
+
+        var outboxRecords = outboxRepository.findAll();
+
+        assertEquals(1, outboxRecords.size(), "Должна быть ровно одна запись в Outbox");
+        assertEquals(EventType.MATERIAL_CREATED, outboxRecords.get(0).getEventType());
+        assertNotNull(outboxRecords.get(0).getPayload());
     }
 
     @Test

@@ -1,11 +1,16 @@
 package by.niruin.library.service;
 
+import by.niruin.library.domain.EventType;
+import by.niruin.library.domain.TransactionOutboxRecord;
 import by.niruin.library.mapper.MaterialMapper;
 import by.niruin.library.domain.Material;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.model.material.UpdateMaterialRequest;
 import by.niruin.library.repository.MaterialRepository;
+import by.niruin.library.repository.TransactionOutboxRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,14 +21,18 @@ import java.util.List;
 public class MaterialService {
     private static final String MATERIAL_TOPIC = "materialEventsTopic";
     private final MaterialRepository materialRepository;
+    private final TransactionOutboxRepository outboxRepository;
     //    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final MaterialMapper materialMapper;
+    private final ObjectMapper objectMapper;
 
-    public MaterialService(MaterialRepository materialRepository,//убрал кафку
-                           MaterialMapper materialMapper) {
+    public MaterialService(MaterialRepository materialRepository, TransactionOutboxRepository outboxRepository,//убрал кафку
+                           MaterialMapper materialMapper, ObjectMapper objectMapper) {
         this.materialRepository = materialRepository;
+        this.outboxRepository = outboxRepository;
 //        this.kafkaTemplate = kafkaTemplate;
         this.materialMapper = materialMapper;
+        this.objectMapper = objectMapper;
     }
 
     public Material save(Material material) {
@@ -52,9 +61,17 @@ public class MaterialService {
         var material = materialRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
 
-        var createdEvent = materialMapper.toCreatedEvent(material);//todo transaction outbox
-//        kafkaTemplate.send(MATERIAL_TOPIC, createdEvent);
+        var createdEvent = materialMapper.toCreatedEvent(material);
+        var outboxRecord = new TransactionOutboxRecord();
+        outboxRecord.setEventType(EventType.MATERIAL_CREATED);
 
+        try {
+            outboxRecord.setPayload(objectMapper.writeValueAsString(createdEvent));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        outboxRepository.save(outboxRecord);
         materialRepository.delete(material);
     }
 

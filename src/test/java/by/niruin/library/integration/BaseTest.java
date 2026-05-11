@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest(classes = TestConfig.class)
@@ -15,4 +16,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public class BaseTest {
     @Autowired
     static PostgreSQLContainer postgreSQLContainer;
+    @Autowired
+    static KafkaContainer kafkaContainer;
 }
