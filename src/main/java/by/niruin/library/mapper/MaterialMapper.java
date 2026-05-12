@@ -2,6 +2,7 @@ package by.niruin.library.mapper;
 
 import by.niruin.library.domain.Material;
 import by.niruin.library.model.event.material.MaterialCreatedEvent;
+import by.niruin.library.model.event.material.MaterialDeletedEvent;
 import by.niruin.library.model.event.material.MaterialUpdatedEvent;
 import by.niruin.library.model.material.CreateMaterialRequest;
 import by.niruin.library.model.material.CreateMaterialResponse;
@@ -20,7 +21,9 @@ public interface MaterialMapper {
 
     List<MaterialDto> toDtoList(List<Material> materials);
 
-    MaterialCreatedEvent toCreatedEvent(Material material);
+    MaterialCreatedEvent toSavedEvent(Material material);
 
     MaterialUpdatedEvent toUpdatedEvent(Material material);
+
+    MaterialDeletedEvent toDeleteEvent(Material material);
 }

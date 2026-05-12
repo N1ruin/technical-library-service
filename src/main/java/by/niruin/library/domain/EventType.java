@@ -6,7 +6,8 @@ public enum EventType {
     SAFETY_INSTRUCTION_CREATED("instruction-topic"),
     SAFETY_INSTRUCTION_UPDATED("instruction-topic"),
     MATERIAL_CREATED("material-topic"),
-    MATERIAL_UPDATED("material-topic");
+    MATERIAL_UPDATED("material-topic"),
+    MATERIAL_DELETED("material-topic");
 
     private String topicName;
 

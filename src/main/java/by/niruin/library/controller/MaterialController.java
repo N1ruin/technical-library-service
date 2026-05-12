@@ -7,11 +7,13 @@ import by.niruin.library.model.material.MaterialDto;
 import by.niruin.library.model.material.UpdateMaterialRequest;
 import by.niruin.library.service.MaterialService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("api/v1/library-service/materials")
@@ -46,12 +48,13 @@ public class MaterialController {
     }
 
     @GetMapping
-    public ResponseEntity<List<MaterialDto>> findAll() {
-        var materials = materialService.findAll();
+    public ResponseEntity<Page<MaterialDto>> findAll(@PageableDefault(size = 20, sort = "id",
+            direction = Sort.Direction.DESC) Pageable pageable) {
+        var materialPage = materialService.findAll(pageable);
 
-        var dtoList = materialMapper.toDtoList(materials);
+        var dtoPage = materialPage.map(materialMapper::toDto);
 
-        return ResponseEntity.ok(dtoList);
+        return ResponseEntity.ok(dtoPage);
     }
 
     @PutMapping("/{id}")

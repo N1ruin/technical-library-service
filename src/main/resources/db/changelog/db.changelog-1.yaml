@@ -152,7 +152,7 @@ databaseChangeLog:
                     nullable: false
               - column:
                   name: payload
-                  type: JSONB
+                  type: TEXT
                   constraints:
                     nullable: false
               - column:

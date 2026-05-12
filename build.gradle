@@ -46,6 +46,8 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers-kafka'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testImplementation("org.testcontainers:testcontainers-minio:2.0.3")
+	testImplementation("org.awaitility:awaitility:4.2.0")
+	testImplementation("org.assertj:assertj-core:3.27.7")
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

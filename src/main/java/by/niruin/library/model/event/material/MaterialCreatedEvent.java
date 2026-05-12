@@ -1,5 +1,7 @@
 package by.niruin.library.model.event.material;
 
+import by.niruin.library.model.event.KafkaEvent;
+
 import java.time.LocalDateTime;
 
 public record MaterialCreatedEvent(Long id,
@@ -7,5 +9,5 @@ public record MaterialCreatedEvent(Long id,
                                    String description,
                                    String standard,
                                    String supplierCode,
-                                   LocalDateTime createdDate) {
+                                   LocalDateTime createdDate) implements KafkaEvent {
 }

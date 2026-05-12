@@ -1,44 +1,47 @@
 package by.niruin.library.service;
 
+import by.niruin.library.domain.EventType;
+import by.niruin.library.domain.TransactionOutboxRecord;
+import by.niruin.library.model.event.KafkaEvent;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import jakarta.transaction.Transactional;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.function.Function;
 
 @Service
+@Transactional
 public class TransactionOutboxService {
-    private static final Logger logger = LogManager.getLogger(TransactionOutboxService.class);
-    private final KafkaTemplate<String, String> kafkaTemplate;
     private final TransactionOutboxRepository outboxRepository;
+    private final JsonSerializer jsonSerializer;
 
-    public TransactionOutboxService(KafkaTemplate<String, String> kafkaTemplate,
-                                    TransactionOutboxRepository outboxRepository) {
-        this.kafkaTemplate = kafkaTemplate;
+    public TransactionOutboxService(TransactionOutboxRepository outboxRepository, JsonSerializer jsonSerializer) {
         this.outboxRepository = outboxRepository;
+        this.jsonSerializer = jsonSerializer;
     }
 
-    @Scheduled(timeUnit = TimeUnit.SECONDS, fixedDelay = 5)
-    @Transactional
-    public void sendMessages() {
-        var records = outboxRepository.findAll();
-        for (var record : records) {
-            kafkaTemplate.send(
-                    record.getEventType().getTopicName(),
-                    record.getId().toString(),
-                    record.getPayload()
-            ).whenComplete((result, e) -> {
-                if (e == null) {
-                    outboxRepository.delete(record);
-                    logger.info("Message sent successfully: {}", record.getId());
-                } else {
-                    logger.error("Failed to send message: {}", record.getId(), e);
-                }
-            });
-        }
+    public void save(TransactionOutboxRecord outboxRecord) {
+        outboxRepository.save(outboxRecord);
+    }
+
+    public <T extends KafkaEvent, O> TransactionOutboxRecord createOutboxRecord(EventType eventType, O object,
+                                                                                Function<O, T> eventMapper) {
+        var outboxRecord = new TransactionOutboxRecord();
+        outboxRecord.setEventType(eventType);
+
+        var event = eventMapper.apply(object);
+        outboxRecord.setPayload(jsonSerializer.serialize(event));
+
+        return outboxRecord;
+    }
+
+    public void delete(TransactionOutboxRecord record) {
+        outboxRepository.delete(record);
+    }
+
+    public List<TransactionOutboxRecord> findBatchRecords(int batchSize) {
+        return outboxRepository.findTopByOrderById(PageRequest.of(0, batchSize));
     }
 }

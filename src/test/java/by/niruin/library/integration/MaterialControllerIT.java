@@ -1,16 +1,43 @@
 package by.niruin.library.integration;
 
+import by.niruin.library.domain.EventType;
 import by.niruin.library.domain.Material;
+import by.niruin.library.domain.TransactionOutboxRecord;
+import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.MaterialService;
+import by.niruin.library.service.MessageBrokerService;
 import jakarta.persistence.EntityManager;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.kafka.KafkaContainer;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.StreamSupport;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -21,6 +48,10 @@ public class MaterialControllerIT extends BaseTest {
     private MaterialService materialService;
     @Autowired
     private EntityManager em;
+    @Autowired
+    private TransactionOutboxRepository outboxRepository;
+    @Autowired
+    private MessageBrokerService messageBrokerService;
 
     private static final String VALID_LITOL_JSON = """
             {
@@ -48,10 +79,13 @@ public class MaterialControllerIT extends BaseTest {
             }
             """;
 
-    @BeforeEach
+    @AfterEach
     void cleanDatabase() {
         em.createNativeQuery("TRUNCATE TABLE library.material RESTART IDENTITY CASCADE")
                 .executeUpdate();
+        em.createNativeQuery("TRUNCATE TABLE library.transaction_outbox RESTART IDENTITY CASCADE")
+                .executeUpdate();
+        outboxRepository.deleteAll();
     }
 
     @Test
@@ -71,6 +105,16 @@ public class MaterialControllerIT extends BaseTest {
                         jsonPath("$.standard").value("ГОСТ 24277-2017"),
                         jsonPath("$.supplierCode").value("245")
                 );
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
+
+        messageBrokerService.sendMessages();
+
+        await().atMost(10, TimeUnit.SECONDS)
+                .pollInterval(1, TimeUnit.SECONDS)
+                .until(() -> outboxRepository.findAll().isEmpty());
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -137,31 +181,21 @@ public class MaterialControllerIT extends BaseTest {
                 .andExpectAll(
                         status().isOk(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        jsonPath("$.length()").value(3),
-                        jsonPath("$[0].id").value(1),
-                        jsonPath("$[0].name").value("Смазка литол-24"),
-                        jsonPath("$[0].description").value("Для смазки трущихся поверхностей. Хранится в стальных бочках"),
-                        jsonPath("$[0].standard").value("ГОСТ 24277-2017"),
-                        jsonPath("$[0].supplierCode").value("245"),
-                        jsonPath("$[0].createdDate").exists(),
-                        jsonPath("$[0].updatedDate").exists(),
-
-                        jsonPath("$[1].id").value(2),
-                        jsonPath("$[1].name").value("Клей 88ПХ"),
-                        jsonPath("$[1].description").value("Для склеивания поверхностей"),
-                        jsonPath("$[1].standard").value("ГОСТ 2213-2022"),
-                        jsonPath("$[1].supplierCode").value("246"),
-                        jsonPath("$[1].createdDate").exists(),
-                        jsonPath("$[1].updatedDate").exists(),
-
-                        jsonPath("$[2].id").value(3),
-                        jsonPath("$[2].name").value("Клей 88СА"),
-                        jsonPath("$[2].description").value("Для склеивания поверхностей"),
-                        jsonPath("$[2].standard").value("ГОСТ 1231-2022"),
-                        jsonPath("$[2].supplierCode").value("247"),
-                        jsonPath("$[2].createdDate").exists(),
-                        jsonPath("$[2].updatedDate").exists()
-                );
+                        jsonPath("$.content[*].id").value(Matchers.containsInAnyOrder(1, 2, 3)),
+                        jsonPath("$.content[*].name").value(Matchers.containsInAnyOrder(
+                                "Смазка литол-24", "Клей 88ПХ", "Клей 88СА")),
+                        jsonPath("$.content[*].description").value(Matchers.containsInAnyOrder(
+                                "Для смазки трущихся поверхностей. Хранится в стальных бочках",
+                                "Для склеивания поверхностей",
+                                "Для склеивания поверхностей")),
+                        jsonPath("$.content[*].standard").value(Matchers.containsInAnyOrder(
+                                "ГОСТ 24277-2017", "ГОСТ 2213-2022", "ГОСТ 1231-2022")),
+                        jsonPath("$.content[*].supplierCode").value(Matchers.containsInAnyOrder(
+                                "245", "246", "247")),
+                        jsonPath("$.content[*].createdDate").exists(),
+                        jsonPath("$.content[*].updatedDate").exists(),
+                        jsonPath("$.totalElements").value(3),
+                        jsonPath("$.totalPages").value(1));
     }
 
     @Test
@@ -185,7 +219,7 @@ public class MaterialControllerIT extends BaseTest {
     @Test
     void update_shouldUpdateAndReturnUpdatedMaterial() throws Exception {
         var material = createLitolMaterial();
-        materialService.save(material);
+        var id = materialService.save(material).getId();
 
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -193,21 +227,13 @@ public class MaterialControllerIT extends BaseTest {
                 .andExpectAll(
                         status().isOk(),
                         content().contentType(MediaType.APPLICATION_JSON),
-                        jsonPath("$.id").value(1),
+                        jsonPath("$.id").value(id),
                         jsonPath("$.name").value("Масло И20А"),
                         jsonPath("$.description").value("Новое описание"),
                         jsonPath("$.standard").value("ISO 12312-23"),
                         jsonPath("$.supplierCode").value("222"),
                         jsonPath("$.createdDate").exists(),
-                        jsonPath("$.updatedDate").exists(),
-                        content().json("""
-                                {
-                                    "id": 1,
-                                    "name": "Масло И20А",
-                                    "description": "Новое описание"
-                                }
-                                """)
-                );
+                        jsonPath("$.updatedDate").exists());
     }
 
     @Test

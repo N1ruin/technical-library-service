@@ -1,49 +1,47 @@
 package by.niruin.library.service;
 
 import by.niruin.library.domain.EventType;
-import by.niruin.library.domain.TransactionOutboxRecord;
 import by.niruin.library.mapper.MaterialMapper;
 import by.niruin.library.domain.Material;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.model.material.UpdateMaterialRequest;
 import by.niruin.library.repository.MaterialRepository;
-import by.niruin.library.repository.TransactionOutboxRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @Transactional
 public class MaterialService {
-    private static final String MATERIAL_TOPIC = "materialEventsTopic";
     private final MaterialRepository materialRepository;
-    private final TransactionOutboxRepository outboxRepository;
-    //    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final MaterialMapper materialMapper;
-    private final ObjectMapper objectMapper;
+    private final TransactionOutboxService transactionOutboxService;
 
-    public MaterialService(MaterialRepository materialRepository, TransactionOutboxRepository outboxRepository,//убрал кафку
-                           MaterialMapper materialMapper, ObjectMapper objectMapper) {
+    public MaterialService(MaterialRepository materialRepository, MaterialMapper materialMapper,
+                           TransactionOutboxService transactionOutboxService) {
         this.materialRepository = materialRepository;
-        this.outboxRepository = outboxRepository;
-//        this.kafkaTemplate = kafkaTemplate;
         this.materialMapper = materialMapper;
-        this.objectMapper = objectMapper;
+        this.transactionOutboxService = transactionOutboxService;
     }
 
     public Material save(Material material) {
         var name = material.getName();
         var standard = material.getStandard();
-
         if (materialRepository.existsByNameAndStandard(name, standard)) {
             throw new EntityAlreadyExistException();
         }
 
-        return materialRepository.save(material);
+        var savedMaterial = materialRepository.save(material);
+
+        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.MATERIAL_CREATED,
+                savedMaterial,
+                materialMapper::toSavedEvent);
+
+        transactionOutboxService.save(outboxRecord);
+
+        return savedMaterial;
     }
 
     @Transactional(readOnly = true)
@@ -53,29 +51,10 @@ public class MaterialService {
     }
 
     @Transactional(readOnly = true)
-    public List<Material> findAll() {//todo реализовать по страницам
-        return materialRepository.findAll();
-    }//todo сделать пагинацию
-
-    public void deleteById(Long id) {
-        var material = materialRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException(id));
-
-        var createdEvent = materialMapper.toCreatedEvent(material);
-        var outboxRecord = new TransactionOutboxRecord();
-        outboxRecord.setEventType(EventType.MATERIAL_CREATED);
-
-        try {
-            outboxRecord.setPayload(objectMapper.writeValueAsString(createdEvent));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-
-        outboxRepository.save(outboxRecord);
-        materialRepository.delete(material);
+    public Page<Material> findAll(Pageable pageable) {
+        return materialRepository.findAll(pageable);
     }
 
-    //    @Cacheable(value = "materials", key = "#id")
     public Material update(Long id, UpdateMaterialRequest request) {
         var material = materialRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
@@ -86,11 +65,26 @@ public class MaterialService {
         }
 
         updateFields(material, request);
-        //todo transaction outbox
-//        var updatedEvent = materialMapper.toUpdatedEvent(material);
-//        kafkaTemplate.send(MATERIAL_TOPIC, event);
+
+        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.MATERIAL_UPDATED,
+                material,
+                materialMapper::toUpdatedEvent);
+
+        transactionOutboxService.save(outboxRecord);
 
         return material;
+    }
+
+    public void deleteById(Long id) {
+        var deletedMaterial = materialRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException(id));
+
+        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.MATERIAL_DELETED,
+                deletedMaterial,
+                materialMapper::toDeleteEvent);
+
+        transactionOutboxService.save(outboxRecord);
+        materialRepository.deleteById(id);
     }
 
     private boolean isNameOrStandardChanged(Material material, UpdateMaterialRequest request) {
