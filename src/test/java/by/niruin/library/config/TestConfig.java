@@ -5,15 +5,15 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.test.context.DynamicPropertyRegistrar;
-import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @TestConfiguration
-@TestPropertySource(properties = {"spring.task.scheduling.enabled=false"})
+@Profile("test")
 public class TestConfig {
     @Bean
     @ServiceConnection

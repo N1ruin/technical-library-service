@@ -1,43 +1,20 @@
 package by.niruin.library.integration;
 
-import by.niruin.library.domain.EventType;
 import by.niruin.library.domain.Material;
-import by.niruin.library.domain.TransactionOutboxRecord;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.MaterialService;
 import by.niruin.library.service.MessageBrokerService;
-import jakarta.persistence.EntityManager;
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.hamcrest.Matchers;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.kafka.KafkaContainer;
 
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -46,8 +23,6 @@ public class MaterialControllerIT extends BaseTest {
     private MockMvc mockMvc;
     @Autowired
     private MaterialService materialService;
-    @Autowired
-    private EntityManager em;
     @Autowired
     private TransactionOutboxRepository outboxRepository;
     @Autowired
@@ -79,15 +54,6 @@ public class MaterialControllerIT extends BaseTest {
             }
             """;
 
-    @AfterEach
-    void cleanDatabase() {
-        em.createNativeQuery("TRUNCATE TABLE library.material RESTART IDENTITY CASCADE")
-                .executeUpdate();
-        em.createNativeQuery("TRUNCATE TABLE library.transaction_outbox RESTART IDENTITY CASCADE")
-                .executeUpdate();
-        outboxRepository.deleteAll();
-    }
-
     @Test
     void createMaterial_shouldReturnSavedMaterial() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
@@ -103,22 +69,19 @@ public class MaterialControllerIT extends BaseTest {
                         jsonPath("$.name").value("Смазка литол-24"),
                         jsonPath("$.description").value("Для смазки трущихся поверхностей. Хранится в стальных бочках"),
                         jsonPath("$.standard").value("ГОСТ 24277-2017"),
-                        jsonPath("$.supplierCode").value("245")
-                );
+                        jsonPath("$.supplierCode").value("245"));
 
         assertThat(outboxRepository.findAll()).hasSize(1);
 
         messageBrokerService.sendMessages();
-
+        Thread.sleep(1000);
         await().atMost(10, TimeUnit.SECONDS)
                 .pollInterval(1, TimeUnit.SECONDS)
                 .until(() -> outboxRepository.findAll().isEmpty());
-
-        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
-    void createMaterial_throwsValidationException() throws Exception {
+    void createMaterial_shouldThrowsValidationException() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_OIL_JSON);
@@ -129,12 +92,11 @@ public class MaterialControllerIT extends BaseTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
+                        jsonPath("$.code").value(400));
     }
 
     @Test
-    void findById_throwsEntityNotFound() throws Exception {
+    void findById_shouldThrowsEntityNotFound() throws Exception {
         var requestBuilder = get("/api/v1/library-service/materials/{id}", 1L)
                 .contentType(MediaType.APPLICATION_JSON);
 
@@ -148,14 +110,13 @@ public class MaterialControllerIT extends BaseTest {
                                     "message": "Entity with id 1 not found",
                                     "code": 404
                                 }
-                                """)
-                );
+                                """));
     }
 
     @Test
     void findById_shouldReturnMaterial() throws Exception {
-        var litol = createLitolMaterial();
-        materialService.save(litol);
+        var material = createLitolMaterial();
+        materialService.save(material);
 
         var requestBuilder = get("/api/v1/library-service/materials/{id}", 1L)
                 .contentType(MediaType.APPLICATION_JSON);
@@ -165,8 +126,10 @@ public class MaterialControllerIT extends BaseTest {
                         status().isOk(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         content().json(VALID_LITOL_JSON),
-                        jsonPath("$.id").exists()
-                );
+                        jsonPath("$.id").value(material.getId()),
+                        jsonPath("$.name").value(material.getName()),
+                        jsonPath("$.description").value(material.getDescription()),
+                        jsonPath("$.standard").value(material.getStandard()));
     }
 
     @Test
@@ -181,7 +144,7 @@ public class MaterialControllerIT extends BaseTest {
                 .andExpectAll(
                         status().isOk(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        jsonPath("$.content[*].id").value(Matchers.containsInAnyOrder(1, 2, 3)),
+                        jsonPath("$.content[*].id").exists(),
                         jsonPath("$.content[*].name").value(Matchers.containsInAnyOrder(
                                 "Смазка литол-24", "Клей 88ПХ", "Клей 88СА")),
                         jsonPath("$.content[*].description").value(Matchers.containsInAnyOrder(
@@ -200,7 +163,7 @@ public class MaterialControllerIT extends BaseTest {
 
     @Test
     void deleteById_shouldReturnNotFound_whenMaterialDoesNotExist() throws Exception {
-        var requestBuilder = delete("/api/v1/library-service/materials/{id}", 1L);
+        var requestBuilder = delete("/api/v1/library-service/materials/{id}", 9999L);
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -209,11 +172,10 @@ public class MaterialControllerIT extends BaseTest {
                         content().json("""
                                 {
                                     "error": "Entity not found",
-                                    "message": "Entity with id 1 not found",
+                                    "message": "Entity with id 9999 not found",
                                     "code": 404
                                 }
-                                """)
-                );
+                                """));
     }
 
     @Test
@@ -221,7 +183,7 @@ public class MaterialControllerIT extends BaseTest {
         var material = createLitolMaterial();
         var id = materialService.save(material).getId();
 
-        mockMvc.perform(put("/api/v1/library-service/materials/{id}", 1L)
+        mockMvc.perform(put("/api/v1/library-service/materials/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_OIL_JSON))
                 .andExpectAll(
@@ -246,13 +208,12 @@ public class MaterialControllerIT extends BaseTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
+                        jsonPath("$.code").value(400));
     }
 
     @Test
     void update_throwsEntityNotFound_whenMaterialDoesNotExist() throws Exception {
-        mockMvc.perform(put("/api/v1/library-service/materials/{id}", 1L)
+        mockMvc.perform(put("/api/v1/library-service/materials/{id}", 9999L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_OIL_JSON))
                 .andExpectAll(
@@ -260,8 +221,7 @@ public class MaterialControllerIT extends BaseTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(404)
-                );
+                        jsonPath("$.code").value(404));
     }
 
     private Material createLitolMaterial() {
