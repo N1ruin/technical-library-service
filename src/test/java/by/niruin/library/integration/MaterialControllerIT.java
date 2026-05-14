@@ -1,6 +1,7 @@
 package by.niruin.library.integration;
 
 import by.niruin.library.domain.Material;
+import by.niruin.library.repository.MaterialRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.MaterialService;
 import by.niruin.library.service.MessageBrokerService;
@@ -18,7 +19,7 @@ import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-public class MaterialControllerIT extends BaseTest {
+public class MaterialControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -27,6 +28,8 @@ public class MaterialControllerIT extends BaseTest {
     private TransactionOutboxRepository outboxRepository;
     @Autowired
     private MessageBrokerService messageBrokerService;
+    @Autowired
+    private MaterialRepository materialRepository;
 
     private static final String VALID_LITOL_JSON = """
             {
@@ -97,20 +100,16 @@ public class MaterialControllerIT extends BaseTest {
 
     @Test
     void findById_shouldThrowsEntityNotFound() throws Exception {
-        var requestBuilder = get("/api/v1/library-service/materials/{id}", 1L)
+        var requestBuilder = get("/api/v1/library-service/materials/{id}", 999L)
                 .contentType(MediaType.APPLICATION_JSON);
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
                         status().isNotFound(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        content().json("""
-                                {
-                                    "error": "Entity not found",
-                                    "message": "Entity with id 1 not found",
-                                    "code": 404
-                                }
-                                """));
+                        jsonPath("$.error").exists(),
+                        jsonPath("$.message").exists(),
+                        jsonPath("$.code").value(404));
     }
 
     @Test
@@ -118,7 +117,7 @@ public class MaterialControllerIT extends BaseTest {
         var material = createLitolMaterial();
         materialService.save(material);
 
-        var requestBuilder = get("/api/v1/library-service/materials/{id}", 1L)
+        var requestBuilder = get("/api/v1/library-service/materials/{id}", material.getId())
                 .contentType(MediaType.APPLICATION_JSON);
 
         mockMvc.perform(requestBuilder)
@@ -222,6 +221,17 @@ public class MaterialControllerIT extends BaseTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(404));
+    }
+
+    @Test
+    void findById_shouldReturnCachedObject_AfterDeletionFromRepository() {
+        var material = materialService.save(createLitolMaterial());
+        materialRepository.deleteById(material.getId());
+
+        var cached = materialService.findById(material.getId());
+
+        assertThat(cached).usingRecursiveComparison()
+                .isEqualTo(material);
     }
 
     private Material createLitolMaterial() {

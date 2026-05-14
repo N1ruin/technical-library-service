@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
-public class SafetyInstructionControllerIT extends BaseTest {
+public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired

@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
-public class EquipmentControllerIT extends BaseTest {
+public class EquipmentControllerIT extends BaseIntegrationTest {
     public static final String MINIO_BUCKET_NAME = "equipments";
     @Autowired
     private MockMvc mockMvc;
