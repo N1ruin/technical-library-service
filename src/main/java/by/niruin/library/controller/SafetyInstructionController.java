@@ -7,11 +7,13 @@ import by.niruin.library.model.instruction.SafetyInstructionDto;
 import by.niruin.library.model.instruction.UpdateSafetyInstructionRequest;
 import by.niruin.library.service.SafetyInstructionService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/library-service/safety-instructions")
@@ -47,12 +49,13 @@ public class SafetyInstructionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<SafetyInstructionDto>> findAll() {
-        var instructions = safetyInstructionService.findAll();
+    public ResponseEntity<Page<SafetyInstructionDto>> findAll(@PageableDefault(size = 20, sort = "id",
+            direction = Sort.Direction.DESC) Pageable pageable) {
+        var instructionPage = safetyInstructionService.findAll(pageable);
 
-        var dtoList = safetyInstructionMapper.toDtoList(instructions);
+        var dtoPage = instructionPage.map(safetyInstructionMapper::toDto);
 
-        return ResponseEntity.ok(dtoList);
+        return ResponseEntity.ok(dtoPage);
     }
 
     @PutMapping("/{id}")

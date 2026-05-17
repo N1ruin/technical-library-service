@@ -5,13 +5,14 @@ import by.niruin.library.model.equipment.CreateEquipmentRequest;
 import by.niruin.library.model.equipment.CreateEquipmentResponse;
 import by.niruin.library.model.equipment.EquipmentDto;
 import by.niruin.library.model.event.equipment.EquipmentCreatedEvent;
+import by.niruin.library.model.event.equipment.EquipmentDeletedEvent;
 import by.niruin.library.model.event.equipment.EquipmentUpdatedEvent;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = InstantMapper.class)
 public interface EquipmentMapper {
     @Mapping(target = "imageName", ignore = true)
     Equipment toEquipment(CreateEquipmentRequest request);
@@ -25,4 +26,6 @@ public interface EquipmentMapper {
     EquipmentCreatedEvent toCreatedEvent(Equipment equipment);
 
     EquipmentUpdatedEvent toUpdatedEvent(Equipment equipment);
+
+    EquipmentDeletedEvent toDeletedEvent(Equipment equipment);
 }

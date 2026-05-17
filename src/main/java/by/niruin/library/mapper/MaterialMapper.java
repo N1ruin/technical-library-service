@@ -11,7 +11,7 @@ import org.mapstruct.Mapper;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = InstantMapper.class)
 public interface MaterialMapper {
     Material toMaterial(CreateMaterialRequest request);
 

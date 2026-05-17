@@ -2,6 +2,7 @@ package by.niruin.library.mapper;
 
 import by.niruin.library.domain.SafetyInstruction;
 import by.niruin.library.model.event.instruction.SafetyInstructionCreatedEvent;
+import by.niruin.library.model.event.instruction.SafetyInstructionDeletedEvent;
 import by.niruin.library.model.event.instruction.SafetyInstructionUpdatedEvent;
 import by.niruin.library.model.instruction.CreateSafetyInstructionRequest;
 import by.niruin.library.model.instruction.CreateSafetyInstructionResponse;
@@ -10,7 +11,7 @@ import org.mapstruct.Mapper;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = InstantMapper.class)
 public interface SafetyInstructionMapper {
     SafetyInstruction toInstruction(CreateSafetyInstructionRequest request);
 
@@ -23,4 +24,6 @@ public interface SafetyInstructionMapper {
     SafetyInstructionCreatedEvent toCreatedEvent(SafetyInstruction instruction);
 
     SafetyInstructionUpdatedEvent toUpdatedEvent(SafetyInstruction instruction);
+
+    SafetyInstructionDeletedEvent toDeletedEvent(SafetyInstruction instruction);
 }

@@ -22,6 +22,7 @@ public class CacheConfiguration {
                     .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
             builder.cacheDefaults(redisConfiguration);
+            builder.transactionAware();
         };
     }
 }

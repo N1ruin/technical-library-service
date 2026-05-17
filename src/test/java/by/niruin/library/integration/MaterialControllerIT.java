@@ -4,7 +4,7 @@ import by.niruin.library.domain.Material;
 import by.niruin.library.repository.MaterialRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.MaterialService;
-import by.niruin.library.service.MessageBrokerService;
+import by.niruin.library.kafka.KafkaProducer;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +27,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     @Autowired
     private TransactionOutboxRepository outboxRepository;
     @Autowired
-    private MessageBrokerService messageBrokerService;
+    private KafkaProducer kafkaProducer;
     @Autowired
     private MaterialRepository materialRepository;
 
@@ -76,7 +76,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
 
         assertThat(outboxRepository.findAll()).hasSize(1);
 
-        messageBrokerService.sendMessages();
+        kafkaProducer.produce();
         Thread.sleep(1000);
         await().atMost(10, TimeUnit.SECONDS)
                 .pollInterval(1, TimeUnit.SECONDS)
@@ -224,14 +224,17 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
-    void findById_shouldReturnCachedObject_AfterDeletionFromRepository() {
+    void findById_shouldUseCache_WhenCalledTwice() {
         var material = materialService.save(createLitolMaterial());
-        materialRepository.deleteById(material.getId());
+        Long materialId = material.getId();
 
-        var cached = materialService.findById(material.getId());
+        Material firstCall = materialService.findById(materialId);
+        materialRepository.deleteById(materialId);
+        Material secondCall = materialService.findById(materialId);
 
-        assertThat(cached).usingRecursiveComparison()
-                .isEqualTo(material);
+        assertThat(secondCall)
+                .usingRecursiveComparison()
+                .isEqualTo(firstCall);
     }
 
     private Material createLitolMaterial() {

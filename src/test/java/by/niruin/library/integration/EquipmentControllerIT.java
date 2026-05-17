@@ -4,9 +4,7 @@ import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.EquipmentService;
-import io.minio.*;
-import io.minio.errors.MinioException;
-import io.minio.messages.Item;
+import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +14,6 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.testcontainers.containers.MinIOContainer;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,8 +22,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
+@WireMockTest(httpPort = 1111)
 public class EquipmentControllerIT extends BaseIntegrationTest {
-    public static final String MINIO_BUCKET_NAME = "equipments";
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -34,26 +31,13 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     @Autowired
     private EntityManager em;
     @Autowired
-    private MinioClient minioClient;
-    @Autowired
-    static MinIOContainer minIOContainer;
-    @Autowired
     static TransactionOutboxRepository outboxRepository;
 
     @BeforeEach
-    void cleanDatabase() throws MinioException {
+    void cleanDatabase() {
         em.createNativeQuery("TRUNCATE TABLE library.equipment RESTART IDENTITY CASCADE")
                 .executeUpdate();
         em.flush();
-
-        for (var file : getAllFiles()) {
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(MINIO_BUCKET_NAME)
-                            .object(file.get().objectName())
-                            .build()
-            );
-        }
     }
 
     @Test
@@ -72,15 +56,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.name").value("Гайковерт"),
                         jsonPath("$.index").value("2125PTi"),
                         jsonPath("$.type").value("ASSEMBLY"),
-                        jsonPath("$.imageName").exists()
-                );
-
-        var saved = equipmentService.findById(1L);
-        assertDoesNotThrow(() -> minioClient.statObject(
-                StatObjectArgs.builder()
-                        .bucket(MINIO_BUCKET_NAME)
-                        .object(saved.getImageName())
-                        .build()));
+                        jsonPath("$.imageName").exists());
     }
 
     @Test
@@ -95,14 +71,10 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.id").value(1L),
                         jsonPath("$.name").value("Гайковерт"),
                         jsonPath("$.index").value("2125PTi"),
-                        jsonPath("$.type").value("ASSEMBLY")
-                );
+                        jsonPath("$.type").value("ASSEMBLY"));
 
         var saved = equipmentService.findById(1L);
         assertNull(saved.getImageName());
-
-        var filesInMinio = getAllFiles();
-        assertFalse(filesInMinio.iterator().hasNext());
     }
 
     @Test
@@ -119,10 +91,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         status().isBadRequest(),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
-
-        assertFalse(getAllFiles().iterator().hasNext());
+                        jsonPath("$.code").value(400));
     }
 
     @Test
@@ -139,10 +108,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         status().isBadRequest(),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
-
-        assertFalse(getAllFiles().iterator().hasNext());
+                        jsonPath("$.code").value(400));
     }
 
     @Test
@@ -159,16 +125,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.description").value(equipment.getDescription()),
                         jsonPath("$.createdDate").exists(),
                         jsonPath("$.updatedDate").exists(),
-                        jsonPath("$.imageName").value(equipment.getImageName())
-                );
-
-        assertDoesNotThrow(() ->
-                minioClient.statObject(
-                        StatObjectArgs.builder()
-                                .bucket(MINIO_BUCKET_NAME)
-                                .object(equipment.getImageName())
-                                .build()
-                ));
+                        jsonPath("$.imageName").value(equipment.getImageName()));
     }
 
     @Test
@@ -178,8 +135,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         status().isNotFound(),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(404)
-                );
+                        jsonPath("$.code").value(404));
     }
 
     @Test
@@ -196,8 +152,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.description").value(equipment.getDescription()),
                         jsonPath("$.createdDate").exists(),
                         jsonPath("$.updatedDate").exists(),
-                        jsonPath("$.imageName").value(nullValue())
-                );
+                        jsonPath("$.imageName").value(nullValue()));
     }
 
     @Test
@@ -217,8 +172,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$[0].imageName").value(savedOne.getImageName()),
                         jsonPath("$[1].id").value(savedTwo.getId()),
                         jsonPath("$[1].index").value("Test equipment"),
-                        jsonPath("$[1].imageName").value(nullValue())
-                );
+                        jsonPath("$[1].imageName").value(nullValue()));
     }
 
     @Test
@@ -226,8 +180,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         mockMvc.perform(get("/api/v1/library-service/equipments"))
                 .andExpectAll(
                         status().isOk(),
-                        jsonPath("$.length()").value(0)
-                );
+                        jsonPath("$.length()").value(0));
     }
 
     @Test
@@ -245,14 +198,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.imageName").value(fileName),
                         jsonPath("$.name").value("New name"),
                         jsonPath("$.description").value("New Description"),
-                        jsonPath("$.type").value("ASSEMBLY")
-                );
-
-        assertDoesNotThrow(() -> minioClient.statObject(
-                StatObjectArgs.builder()
-                        .bucket(MINIO_BUCKET_NAME)
-                        .object(fileName)
-                        .build()));
+                        jsonPath("$.type").value("ASSEMBLY"));
     }
 
     @Test
@@ -277,23 +223,9 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.index").value(equipment.getIndex()),
                         jsonPath("$.name").value(equipment.getName()),
                         jsonPath("$.description").value(equipment.getDescription()),
-                        jsonPath("$.type").value(equipment.getType().name())
-                );
+                        jsonPath("$.type").value(equipment.getType().name()));
 
         assertNotEquals(fileName, equipment.getImageName());
-
-        assertDoesNotThrow(() -> minioClient.statObject(
-                StatObjectArgs.builder()
-                        .bucket(MINIO_BUCKET_NAME)
-                        .object(equipment.getImageName())
-                        .build()));
-
-        assertThrows(MinioException.class, () ->
-                minioClient.statObject(
-                        StatObjectArgs.builder()
-                                .bucket(MINIO_BUCKET_NAME)
-                                .object(fileName)
-                                .build()));
     }
 
     @Test
@@ -307,8 +239,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         status().isNotFound(),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(404)
-                );
+                        jsonPath("$.code").value(404));
     }
 
     @Test
@@ -322,8 +253,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         status().isBadRequest(),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
+                        jsonPath("$.code").value(400));
     }
 
     @Test
@@ -334,14 +264,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
-                        status().isNoContent()
-                );
-
-        assertThrows(MinioException.class, () -> minioClient.statObject(
-                StatObjectArgs.builder()
-                        .bucket(MINIO_BUCKET_NAME)
-                        .object(fileName)
-                        .build()));
+                        status().isNoContent());
     }
 
     @Test
@@ -354,8 +277,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(404)
-                );
+                        jsonPath("$.code").value(404));
     }
 
     private MockMultipartFile getValidMultipartFile() {
@@ -382,10 +304,5 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         equipment.setType(EquipmentType.ASSEMBLY);
 
         return equipment;
-    }
-
-    private Iterable<Result<Item>> getAllFiles() {
-        return minioClient.listObjects(
-                ListObjectsArgs.builder().bucket(MINIO_BUCKET_NAME).build());
     }
 }

@@ -1,6 +1,6 @@
 package by.niruin.library.unit;
 
-import by.niruin.library.domain.EventType;
+import by.niruin.library.model.event.EventType;
 import by.niruin.library.domain.Material;
 import by.niruin.library.domain.TransactionOutboxRecord;
 import by.niruin.library.exception.EntityAlreadyExistException;

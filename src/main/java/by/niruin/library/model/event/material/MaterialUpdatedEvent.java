@@ -1,13 +1,13 @@
 package by.niruin.library.model.event.material;
 
-import by.niruin.library.model.event.KafkaEvent;
+import by.niruin.library.model.event.MessageBrokerEvent;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
-public record MaterialUpdatedEvent(Long id,
-                                   String name,
+public record MaterialUpdatedEvent(String name,
                                    String description,
                                    String standard,
                                    String supplierCode,
-                                   LocalDateTime updatedDate) implements KafkaEvent {
+                                   Instant updatedDate) implements MessageBrokerEvent {
 }

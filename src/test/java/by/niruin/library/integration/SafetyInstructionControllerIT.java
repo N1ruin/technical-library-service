@@ -6,6 +6,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -139,21 +140,21 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                 .andExpectAll(
                         status().isOk(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        jsonPath("$[0].id").value(1L),
-                        jsonPath("$[0].number").exists(),
-                        jsonPath("$[0].description").value("Тестовое описание"),
-                        jsonPath("$[0].createdDate").exists(),
-                        jsonPath("$[0].updatedDate").exists(),
-                        jsonPath("$[1].id").value(2L),
-                        jsonPath("$[1].number").exists(),
-                        jsonPath("$[1].description").value("Тестовое описание"),
-                        jsonPath("$[1].createdDate").exists(),
-                        jsonPath("$[1].updatedDate").exists(),
-                        jsonPath("$[2].id").value(3L),
-                        jsonPath("$[2].number").exists(),
-                        jsonPath("$[2].description").value("Тестовое описание"),
-                        jsonPath("$[2].createdDate").exists(),
-                        jsonPath("$[2].updatedDate").exists()
+                        jsonPath("$.content[0].id").exists(),
+                        jsonPath("$.content[0].number").exists(),
+                        jsonPath("$.content[0].description").exists(),
+                        jsonPath("$.content[0].createdDate").exists(),
+                        jsonPath("$.content[0].updatedDate").exists(),
+                        jsonPath("$.content[1].id").exists(),
+                        jsonPath("$.content[1].number").exists(),
+                        jsonPath("$.content[1].description").exists(),
+                        jsonPath("$.content[1].createdDate").exists(),
+                        jsonPath("$.content[1].updatedDate").exists(),
+                        jsonPath("$.content[2].id").exists(),
+                        jsonPath("$.content[2].number").exists(),
+                        jsonPath("$.content[2].description").exists(),
+                        jsonPath("$.content[2].createdDate").exists(),
+                        jsonPath("$.content[2].updatedDate").exists()
                 );
     }
 
@@ -167,7 +168,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         status().isNoContent()
                 );
 
-        assertEquals(0, safetyInstructionService.findAll().size());
+        assertEquals(0, safetyInstructionService.findAll(PageRequest.of(1, 10)).get().count());
     }
 
     @Test

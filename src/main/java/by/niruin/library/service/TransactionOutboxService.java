@@ -1,12 +1,14 @@
 package by.niruin.library.service;
 
-import by.niruin.library.domain.EventType;
+import by.niruin.library.model.event.EventType;
 import by.niruin.library.domain.TransactionOutboxRecord;
-import by.niruin.library.model.event.KafkaEvent;
+import by.niruin.library.model.event.MessageBrokerEvent;
 import by.niruin.library.repository.TransactionOutboxRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.function.Function;
@@ -15,24 +17,29 @@ import java.util.function.Function;
 @Transactional
 public class TransactionOutboxService {
     private final TransactionOutboxRepository outboxRepository;
-    private final JsonSerializer jsonSerializer;
+    private final ObjectMapper objectMapper;
 
-    public TransactionOutboxService(TransactionOutboxRepository outboxRepository, JsonSerializer jsonSerializer) {
+    public TransactionOutboxService(TransactionOutboxRepository outboxRepository, ObjectMapper objectMapper) {
         this.outboxRepository = outboxRepository;
-        this.jsonSerializer = jsonSerializer;
+        this.objectMapper = objectMapper;
     }
 
     public void save(TransactionOutboxRecord outboxRecord) {
         outboxRepository.save(outboxRecord);
     }
 
-    public <T extends KafkaEvent, O> TransactionOutboxRecord createOutboxRecord(EventType eventType, O object,
-                                                                                Function<O, T> eventMapper) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveInNewTransaction(TransactionOutboxRecord outboxRecord) {
+        outboxRepository.save(outboxRecord);
+    }
+
+    public <T extends MessageBrokerEvent, O> TransactionOutboxRecord createOutboxRecord(EventType eventType, O object,
+                                                                                        Function<O, T> eventMapper) {
         var outboxRecord = new TransactionOutboxRecord();
         outboxRecord.setEventType(eventType);
 
         var event = eventMapper.apply(object);
-        outboxRecord.setPayload(jsonSerializer.serialize(event));
+        outboxRecord.setPayload(objectMapper.writeValueAsString(event));
 
         return outboxRecord;
     }

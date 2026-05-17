@@ -1,6 +1,6 @@
 package by.niruin.library.service;
 
-import by.niruin.library.domain.EventType;
+import by.niruin.library.model.event.EventType;
 import by.niruin.library.mapper.MaterialMapper;
 import by.niruin.library.domain.Material;
 import by.niruin.library.exception.EntityAlreadyExistException;
@@ -29,7 +29,7 @@ public class MaterialService {
         this.transactionOutboxService = transactionOutboxService;
     }
 
-    @CachePut(value = "material", key = "#result.id")
+    @CachePut(value = "material", key = "#result.id", unless = "#result == null")
     public Material save(Material material) {
         var name = material.getName();
         var standard = material.getStandard();

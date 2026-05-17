@@ -2,23 +2,27 @@ package by.niruin.library.exception.handler;
 
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
-import by.niruin.library.exception.InvalidImageFormatException;
 import by.niruin.library.model.error.ErrorResponse;
+import feign.FeignException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.tomcat.util.http.fileupload.FileUploadException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import tools.jackson.databind.ObjectMapper;
 
-import java.util.Arrays;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LogManager.getLogger(GlobalExceptionHandler.class);
+    private final ObjectMapper objectMapper;
+
+    public GlobalExceptionHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleEntityNotFound(EntityNotFoundException exception) {
@@ -55,33 +59,42 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler(FileUploadException.class)
-    public ResponseEntity<ErrorResponse> handleFileUpload(FileUploadException exception) {
-        log.warn("File upload error: {}", exception.getMessage(), exception);
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponse> handleFeignException(FeignException exception) {
+        int status = exception.status() >= 400 ? exception.status() : HttpStatus.INTERNAL_SERVER_ERROR.value();
 
-        var errorResponse = new ErrorResponse("File upload error", exception.getMessage(),
-                HttpStatus.CONFLICT.value());
+        ErrorResponse errorResponse;
+        if (exception.responseBody().isPresent()) {
+            try {
+                errorResponse = parseFeignException(exception);
 
-        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
-    }
+                return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(status));
+            } catch (Exception e) {
+                log.warn("Parsing JSON error from feign exception", e);
+            }
+        }
 
-    @ExceptionHandler(InvalidImageFormatException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidImageFormat(InvalidImageFormatException exception) {
-        log.warn("Invalid image format: {}", exception.getMessage(), exception);
+        var fallbackResponse = new ErrorResponse("Internal Server Error",
+                "An unexpected error occurred. Please try again later.",
+                HttpStatus.INTERNAL_SERVER_ERROR.value());
 
-        var errorResponse = new ErrorResponse("Invalid image format", exception.getMessage(),
-                HttpStatus.BAD_REQUEST.value());
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(fallbackResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception exception) {
-        log.warn(exception);
+        log.error("Unknown exception occurred: {}", exception.getMessage(), exception);
 
-        var errorResponse = new ErrorResponse("Unknown exception", Arrays.toString(exception.getStackTrace()),
+        var errorResponse = new ErrorResponse("Internal Server Error",
+                "An unexpected error occurred. Please try again later.",
                 HttpStatus.INTERNAL_SERVER_ERROR.value());
 
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private ErrorResponse parseFeignException(FeignException exception) {
+        byte[] rawBody = exception.responseBody().get().array();
+
+        return objectMapper.readValue(rawBody, ErrorResponse.class);
     }
 }
