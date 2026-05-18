@@ -1,18 +1,40 @@
 package by.niruin.library.unit;
 
+import by.niruin.library.client.FileClient;
+import by.niruin.library.domain.Equipment;
+import by.niruin.library.domain.EquipmentType;
+import by.niruin.library.domain.TransactionOutboxRecord;
+import by.niruin.library.exception.EntityAlreadyExistException;
+import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.mapper.EquipmentMapper;
+import by.niruin.library.model.equipment.UpdateEquipmentRequest;
+import by.niruin.library.model.event.EventType;
+import by.niruin.library.model.file.UploadFileResponse;
 import by.niruin.library.repository.EquipmentRepository;
 import by.niruin.library.service.EquipmentService;
 import by.niruin.library.service.TransactionOutboxService;
+import feign.FeignException;
+import org.junit.jupiter.api.MediaType;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class EquipmentServiceTest {
@@ -22,42 +44,383 @@ public class EquipmentServiceTest {
     private TransactionOutboxService outboxService;
     @Mock
     private EquipmentMapper equipmentMapper;
+    @Mock
+    private FileClient fileClient;
     @InjectMocks
     private EquipmentService equipmentService;
 
-//    @Test
-//    void saveSuccess_shouldReturnSavedEquipment() {
-//        var instruction = createTestInstruction();
-//        when(instructionRepository.existsByNumber(instruction.getNumber()))
-//                .thenReturn(false);
-//        when(instructionRepository.save(instruction))
-//                .thenReturn(instruction);
-//        var outboxRecord = mock(TransactionOutboxRecord.class);
-//        when(outboxService.createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_CREATED), eq(instruction), any()))
-//                .thenReturn(outboxRecord);
-//
-//        var saved = instructionService.save(instruction);
-//
-//        assertThat(instruction).usingRecursiveComparison()
-//                .isEqualTo(saved);
-//        verify(outboxService).createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_CREATED), eq(instruction), any());
-//        verify(instructionRepository).existsByNumber(instruction.getNumber());
-//        verify(instructionRepository).save(instruction);
-//        verify(outboxService).save(outboxRecord);
-//    }
-//
-//    private Equipment createTestEquipment() {
-//        var equipment = new Equipment();
-//        instruction.setNumber("123п");
-//        instruction.setDescription("Для слесарей механосборочных работ");
-//
-//        return equipment;
-//    }
-//
-//    private UpdateEquipmentRequest createUpdateEquipmentRequest() {
-//        var number = "322";
-//        var description = "Для слесарей МСР";
-//
-//        return new UpdateEquipmentRequest(number, description);
-//    }
+    @Test
+    void saveSuccess_shouldReturnSavedEquipment_withFile() {
+        var equipment = createTestEquipment();
+        var image = new MockMultipartFile("file", new byte[10]);
+        var savedFileName = UUID.randomUUID() + ".png";
+        var fileUploadResponse = new UploadFileResponse(savedFileName);
+        when(equipmentRepository.existsByIndex(equipment.getIndex()))
+                .thenReturn(false);
+        when(fileClient.uploadImage(image))
+                .thenReturn(fileUploadResponse);
+        equipment.setImageName(savedFileName);
+        when(equipmentRepository.save(equipment)).thenReturn(equipment);
+        var equipmentCreatedOutboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any()))
+                .thenReturn(equipmentCreatedOutboxRecord);
+
+        var result = equipmentService.save(equipment, image);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getImageName()).isEqualTo(savedFileName);
+        verify(equipmentRepository).existsByIndex(equipment.getIndex());
+        verify(fileClient).uploadImage(image);
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any());
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), any(String.class), any());
+        verify(outboxService, never()).saveInNewTransaction(any(TransactionOutboxRecord.class));
+    }
+
+    @Test
+    void save_shouldThrowEntityAlreadyExist() {
+        var equipment = createTestEquipment();
+        when(equipmentRepository.existsByIndex(equipment.getIndex()))
+                .thenThrow(new EntityAlreadyExistException());
+
+        assertThatThrownBy(() -> equipmentService.save(equipment, null))
+                .isInstanceOf(EntityAlreadyExistException.class);
+
+        verifyNoInteractions(fileClient);
+        verify(equipmentRepository, never()).save(equipment);
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void save_shouldReturnSavedEquipment_WithoutFileName() {
+        var equipment = createTestEquipment();
+        when(equipmentRepository.existsByIndex(equipment.getIndex()))
+                .thenReturn(false);
+        var equipmentCreatedRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any()))
+                .thenReturn(equipmentCreatedRecord);
+        when(equipmentRepository.save(equipment))
+                .thenReturn(equipment);
+
+        var saved = equipmentService.save(equipment, null);
+
+        assertThat(saved.getImageName()).isNull();
+        assertThat(saved).usingRecursiveComparison()
+                .isEqualTo(equipment);
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(equipment), any());
+        verify(outboxService, never()).saveInNewTransaction(any(TransactionOutboxRecord.class));
+    }
+
+    @Test
+    void save_shouldThrowFeignEx() {
+        var equipment = createTestEquipment();
+        var image = new MockMultipartFile("file", new byte[10]);
+        when(equipmentRepository.existsByIndex(equipment.getIndex()))
+                .thenReturn(false);
+        when(fileClient.uploadImage(image))
+                .thenThrow(FeignException.class);
+
+        assertThatThrownBy(() -> equipmentService.save(equipment, image))
+                .isInstanceOf(FeignException.class);
+        verify(fileClient).uploadImage(image);
+        verify(equipmentRepository).existsByIndex(equipment.getIndex());
+        verify(equipmentRepository, never()).save(equipment);
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void save_shouldThrowEx_whereOutboxServiceThrownEx() {
+        var equipment = createTestEquipment();
+        var image = new MockMultipartFile("file", new byte[10]);
+        var savedFileName = UUID.randomUUID() + ".png";
+        var fileUploadResponse = new UploadFileResponse(savedFileName);
+        when(equipmentRepository.existsByIndex(equipment.getIndex()))
+                .thenReturn(false);
+        when(fileClient.uploadImage(image))
+                .thenReturn(fileUploadResponse);
+        equipment.setImageName(savedFileName);
+        when(equipmentRepository.save(equipment))
+                .thenReturn(equipment);
+        var outboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any()))
+                .thenReturn(outboxRecord);
+        doThrow(RuntimeException.class).when(outboxService).save(outboxRecord);
+        var fileDeletionOutboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(equipment.getImageName()), any()))
+                .thenReturn(fileDeletionOutboxRecord);
+
+        assertThatThrownBy(() -> equipmentService.save(equipment, image))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(equipmentRepository).existsByIndex(equipment.getIndex());
+        verify(fileClient).uploadImage(image);
+        verify(equipmentRepository).save(equipment);
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any());
+        verify(outboxService).save(outboxRecord);
+        verify(outboxService).createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(equipment.getImageName()), any());
+        verify(outboxService).saveInNewTransaction(fileDeletionOutboxRecord);
+    }
+
+    @Test
+    void findById_shouldReturnEquipment() {
+        var equipment = createTestEquipment();
+        when(equipmentRepository.findById(anyLong()))
+                .thenReturn(Optional.of(equipment));
+
+        var result = equipmentService.findById(1L);
+
+        assertThat(equipment).usingRecursiveComparison()
+                .isEqualTo(result);
+    }
+
+    @Test
+    void findById_shouldThrowEntityNotFound() {
+        var id = 1L;
+        when(equipmentRepository.findById(anyLong()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> equipmentService.findById(id))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    void findAll_shouldReturnEmptyList() {
+        when(equipmentRepository.findAll(any(Pageable.class)))
+                .thenReturn(Page.empty());
+        var pageRequest = PageRequest.of(0, 10);
+
+        var equipmentPage = equipmentService.findAll(pageRequest);
+
+        assertThat(equipmentPage).hasSize(0);
+        verify(equipmentRepository).findAll(any(PageRequest.class));
+    }
+
+    @Test
+    void findAll_shouldReturnListWithSize1() {
+        var equipment = createTestEquipment();
+        var expectedPage = new PageImpl<>(List.of(equipment));
+        when(equipmentRepository.findAll(any(Pageable.class)))
+                .thenReturn(expectedPage);
+        var pageRequest = PageRequest.of(0, 10);
+
+        var equipmentPage = equipmentService.findAll(pageRequest);
+
+        assertThat(equipmentPage).hasSize(1);
+        assertThat(equipmentPage.getContent().getFirst()).usingRecursiveComparison()
+                .isEqualTo(equipment);
+        verify(equipmentRepository).findAll(any(PageRequest.class));
+    }
+
+    @Test
+    void update_shouldReturnUpdatedMaterial() {
+        var id = 1L;
+        var oldFileName = "old-image.png";
+        var savedFileName = UUID.randomUUID() + ".png";
+        var fileUploadResponse = new UploadFileResponse(savedFileName);
+        var equipment = createTestEquipment();
+        equipment.setImageName(oldFileName);
+        var mockFile = new MockMultipartFile("file", "image.png", MediaType.IMAGE_JPEG.toString(), new byte[10]);
+        var updateRequest = createUpdateEquipmentRequest(mockFile);
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        when(equipmentRepository.existsByIndex(updateRequest.index()))
+                .thenReturn(false);
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        when(equipmentRepository.existsByIndex(updateRequest.index()))
+                .thenReturn(false);
+        when(fileClient.uploadImage(mockFile))
+                .thenReturn(fileUploadResponse);
+        when(equipmentRepository.save(any(Equipment.class)))
+                .thenReturn(equipment);
+        var updateOutboxRecord = mock(TransactionOutboxRecord.class);
+        var deleteOutboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), any(Equipment.class), any()))
+                .thenReturn(updateOutboxRecord);
+        when(outboxService.createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(oldFileName), any()))
+                .thenReturn(deleteOutboxRecord);
+
+        var result = equipmentService.update(id, updateRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getImageName()).isEqualTo(fileUploadResponse.fileName());
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository).existsByIndex(updateRequest.index());
+        verify(fileClient).uploadImage(mockFile);
+        verify(equipmentRepository).save(equipment);
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any());
+        verify(outboxService).save(updateOutboxRecord);
+        verify(outboxService).createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(oldFileName), any());
+        verify(outboxService).save(deleteOutboxRecord);
+    }
+
+    @Test
+    void update_shouldReturnUpdatedEquipment_withoutNewFile() {
+        var id = 1L;
+        var oldFileName = "old-image.png";
+        var equipment = createTestEquipment();
+        equipment.setImageName(oldFileName);
+        var updateRequest = createUpdateEquipmentRequest(null);
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        when(equipmentRepository.existsByIndex(updateRequest.index()))
+                .thenReturn(false);
+        when(equipmentRepository.save(any(Equipment.class)))
+                .thenReturn(equipment);
+        var updateOutboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any()))
+                .thenReturn(updateOutboxRecord);
+
+        var result = equipmentService.update(id, updateRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getImageName()).isEqualTo(oldFileName);
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository).existsByIndex(updateRequest.index());
+        verify(equipmentRepository).save(equipment);
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any());
+        verify(outboxService).save(updateOutboxRecord);
+        verifyNoInteractions(fileClient);
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), any(), any());
+    }
+
+    @Test
+    void update_shouldThrowEntityNotFound() {
+        var id = 1L;
+        var updateRequest = createUpdateEquipmentRequest(null);
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> equipmentService.update(id, updateRequest))
+                .isInstanceOf(EntityNotFoundException.class);
+
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository, never()).existsByIndex(updateRequest.index());
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void update_shouldThrowEntityAlreadyExist_whenIndexAlreadyExist() {
+        var id = 1L;
+        var equipment = createTestEquipment();
+        equipment.setIndex("old-index");
+        var updateRequest = createUpdateEquipmentRequest(null);
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        when(equipmentRepository.existsByIndex(updateRequest.index()))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> equipmentService.update(id, updateRequest))
+                .isInstanceOf(EntityAlreadyExistException.class);
+
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository).existsByIndex(updateRequest.index());
+        verify(equipmentRepository, never()).save(any());
+        verifyNoInteractions(fileClient);
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void update_shouldSuccess_whenIndexHasNotChanged() {
+        var id = 1L;
+        var equipment = createTestEquipment();
+        var updateRequest = createUpdateEquipmentRequest(null);
+        equipment.setIndex(updateRequest.index());
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        when(equipmentRepository.save(any(Equipment.class)))
+                .thenReturn(equipment);
+        var updateOutboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any()))
+                .thenReturn(updateOutboxRecord);
+
+        var result = equipmentService.update(id, updateRequest);
+
+        assertThat(result).isNotNull();
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository, never()).existsByIndex(anyString());
+        verify(equipmentRepository).save(equipment);
+    }
+
+    @Test
+    void update_shouldNotCreateDeleteOutbox_whenOldImageWasNull() {
+        var id = 1L;
+        var savedFileName = UUID.randomUUID() + ".png";
+        var fileUploadResponse = new UploadFileResponse(savedFileName);
+        var equipment = createTestEquipment();
+        equipment.setImageName(null);
+        var mockFile = new MockMultipartFile("file", "image.png", MediaType.IMAGE_JPEG.toString(), new byte[10]);
+        var updateRequest = createUpdateEquipmentRequest(mockFile);
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        when(equipmentRepository.existsByIndex(updateRequest.index()))
+                .thenReturn(false);
+        when(fileClient.uploadImage(mockFile))
+                .thenReturn(fileUploadResponse);
+        when(equipmentRepository.save(any(Equipment.class)))
+                .thenReturn(equipment);
+        var updateOutboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any()))
+                .thenReturn(updateOutboxRecord);
+
+        var result = equipmentService.update(id, updateRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getImageName()).isEqualTo(fileUploadResponse.fileName());
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository).existsByIndex(updateRequest.index());
+        verify(fileClient).uploadImage(mockFile);
+        verify(equipmentRepository).save(equipment);
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any());
+        verify(outboxService).save(updateOutboxRecord);
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), any(), any());
+    }
+
+    @Test
+    void deleteById_shouldDeleteSuccess() {
+        var id = 1L;
+        var equipment = createTestEquipment();
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.of(equipment));
+        var outboxRecord = mock(TransactionOutboxRecord.class);
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_DELETED), eq(equipment), any()))
+                .thenReturn(outboxRecord);
+
+        equipmentService.delete(id);
+
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_DELETED), eq(equipment), any());
+        verify(equipmentRepository).findById(id);
+        verify(outboxService).save(outboxRecord);
+    }
+
+    @Test
+    void deleteById_shouldThrowEntityNotFound() {
+        var id = 1L;
+        when(equipmentRepository.findById(id))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> equipmentService.delete(id))
+                .isInstanceOf(EntityNotFoundException.class);
+        verify(equipmentRepository).findById(id);
+        verify(equipmentRepository, never()).deleteById(id);
+        verifyNoInteractions(outboxService);
+    }
+
+    private Equipment createTestEquipment() {
+        var equipment = new Equipment();
+        equipment.setType(EquipmentType.ASSEMBLY);
+        equipment.setDescription("Тестовое описание");
+        equipment.setIndex("1234-1235");
+        equipment.setName("Ключ");
+
+        return equipment;
+    }
+
+    private UpdateEquipmentRequest createUpdateEquipmentRequest(MultipartFile file) {
+        var newType = EquipmentType.CONTROL;
+        var newDescription = "Новое описание";
+        var newIndex = "1231-9999";
+        var newName = "Новое название";
+
+        return new UpdateEquipmentRequest(newName, newIndex, newDescription, file, newType.name());
+    }
 }

@@ -43,7 +43,7 @@ public class EquipmentService {
 
         String uploadedFileName = null;
         if (image != null && !image.isEmpty()) {
-            uploadedFileName = fileClient.uploadImage(image);
+            uploadedFileName = fileClient.uploadImage(image).fileName();
         }
 
         try {
@@ -94,7 +94,7 @@ public class EquipmentService {
         String newFileName = null;
 
         if (request.file() != null && !request.file().isEmpty()) {
-            newFileName = fileClient.uploadImage(request.file());
+            newFileName = fileClient.uploadImage(request.file()).fileName();
         }
 
         updateFields(equipment, request, newFileName);

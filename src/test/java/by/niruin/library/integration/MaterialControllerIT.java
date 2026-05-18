@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +20,7 @@ import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@Transactional
 public class MaterialControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
@@ -39,6 +41,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                 "supplierCode": "245"
             }
             """;
+
     private static final String VALID_OIL_JSON = """
             {
                 "name": "Масло И20А",

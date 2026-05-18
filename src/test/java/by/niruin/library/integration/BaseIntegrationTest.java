@@ -12,8 +12,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest
 @Import({TestConfig.class, FeignClientConfiguration.class})
 @Testcontainers
-@AutoConfigureMockMvc
-@Transactional
+@AutoConfigureMockMvc(printOnlyOnFailure = false)
 @ActiveProfiles("test")
 public abstract class BaseIntegrationTest {
 }

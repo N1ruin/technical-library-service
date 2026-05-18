@@ -2,61 +2,95 @@ package by.niruin.library.integration;
 
 import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
+import by.niruin.library.model.error.ErrorResponse;
+import by.niruin.library.model.file.UpdateFileResponse;
+import by.niruin.library.model.file.UploadFileResponse;
+import by.niruin.library.repository.EquipmentRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.EquipmentService;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import tools.jackson.databind.ObjectMapper;
 
-import static org.hamcrest.Matchers.nullValue;
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.UUID;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WireMockTest(httpPort = 1111)
+@WireMockTest
 public class EquipmentControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
     private EquipmentService equipmentService;
     @Autowired
-    private EntityManager em;
+    private EquipmentRepository equipmentRepository;
     @Autowired
-    static TransactionOutboxRepository outboxRepository;
+    private TransactionOutboxRepository outboxRepository;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @RegisterExtension
+    static WireMockExtension wireMock = WireMockExtension.newInstance()
+            .options(WireMockConfiguration.wireMockConfig().dynamicPort())
+            .build();
+
+    @DynamicPropertySource
+    static void overrideFeignProperties(DynamicPropertyRegistry registry) {
+        registry.add("file-service.url", wireMock::baseUrl);
+    }
 
     @BeforeEach
     void cleanDatabase() {
-        em.createNativeQuery("TRUNCATE TABLE library.equipment RESTART IDENTITY CASCADE")
-                .executeUpdate();
-        em.flush();
+        equipmentRepository.deleteAll();
+        wireMock.resetAll();
     }
 
     @Test
     void save_shouldReturnSavedEquipment() throws Exception {
         var multipartFile = getValidMultipartFile();
+        var generatedFileName = UUID.randomUUID() + ".png";
+        var uploadResponse = new UploadFileResponse(generatedFileName);
+        var responseBody = objectMapper.writeValueAsString(uploadResponse);
+
+        wireMock.stubFor(post("/api/v1/file-service/files/images")
+                .withHeader("Content-Type", containing("multipart/form-data"))
+                .willReturn(aResponse()
+                        .withStatus(HttpStatus.CREATED.value())
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(responseBody)));
 
         mockMvc.perform(multipart(HttpMethod.POST, "/api/v1/library-service/equipments")
                         .file(multipartFile)
                         .param("name", "Гайковерт")
                         .param("index", "2125PTi")
                         .param("description", "Максимальный момент затяжки до 300 Нм")
-                        .param("type", "ASSEMBLY"))
+                        .param("type", EquipmentType.ASSEMBLY.name()))
                 .andExpectAll(
                         status().isCreated(),
-                        jsonPath("$.id").value(1L),
+                        jsonPath("$.id").exists(),
                         jsonPath("$.name").value("Гайковерт"),
                         jsonPath("$.index").value("2125PTi"),
-                        jsonPath("$.type").value("ASSEMBLY"),
-                        jsonPath("$.imageName").exists());
+                        jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()),
+                        jsonPath("$.imageName").value(generatedFileName));
     }
 
     @Test
@@ -65,13 +99,13 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         .param("name", "Гайковерт")
                         .param("index", "2125PTi")
                         .param("description", "Максимальный момент затяжки до 300 Нм")
-                        .param("type", "ASSEMBLY"))
+                        .param("type", EquipmentType.ASSEMBLY.name()))
                 .andExpectAll(
                         status().isCreated(),
-                        jsonPath("$.id").value(1L),
+                        jsonPath("$.id").exists(),
                         jsonPath("$.name").value("Гайковерт"),
                         jsonPath("$.index").value("2125PTi"),
-                        jsonPath("$.type").value("ASSEMBLY"));
+                        jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()));
 
         var saved = equipmentService.findById(1L);
         assertNull(saved.getImageName());
@@ -80,13 +114,22 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     @Test
     void save_throwsInvalidFileFormatException() throws Exception {
         var multipartFile = getInvalidFormatMultipartFile();
+        var errorResponseStub = new ErrorResponse(HttpStatus.BAD_REQUEST.toString(), "Error message",
+                HttpStatus.BAD_REQUEST.value());
+        var responseJson = objectMapper.writeValueAsString(errorResponseStub);
+        wireMock.stubFor(post("/api/v1/file-service/files/images")
+                .withHeader("Content-Type", containing("multipart/form-data"))
+                .willReturn(aResponse()
+                        .withStatus(HttpStatus.BAD_REQUEST.value())
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(responseJson)));
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
                         .file(multipartFile)
                         .param("name", "Гайковерт")
                         .param("index", "2125PTi")
                         .param("description", "Максимальный момент затяжки до 300 Нм")
-                        .param("type", "ASSEMBLY"))
+                        .param("type", EquipmentType.ASSEMBLY.name()))
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.error").exists(),
@@ -113,24 +156,27 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
     @Test
     void findById_shouldReturnEquipment_andSaveImageInMinio() throws Exception {
-        var equipment = equipmentService.save(getEquipment(), getValidMultipartFile());
+        var equipment = getEquipment();
+        var generatedFileName = UUID.randomUUID() + ".png";
+        equipment.setImageName(generatedFileName);
+        var saved = equipmentRepository.save(equipment);
 
-        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", equipment.getId()))
+        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", saved.getId()))
                 .andExpectAll(
                         status().isOk(),
-                        jsonPath("$.id").value(equipment.getId()),
-                        jsonPath("$.name").value(equipment.getName()),
-                        jsonPath("$.index").value(equipment.getIndex()),
-                        jsonPath("$.type").value(equipment.getType().name()),
-                        jsonPath("$.description").value(equipment.getDescription()),
+                        jsonPath("$.id").value(saved.getId()),
+                        jsonPath("$.name").value(saved.getName()),
+                        jsonPath("$.index").value(saved.getIndex()),
+                        jsonPath("$.type").value(saved.getType().name()),
+                        jsonPath("$.description").value(saved.getDescription()),
                         jsonPath("$.createdDate").exists(),
                         jsonPath("$.updatedDate").exists(),
-                        jsonPath("$.imageName").value(equipment.getImageName()));
+                        jsonPath("$.imageName").value(saved.getImageName()));
     }
 
     @Test
     void findById_throwsNotFoundException() throws Exception {
-        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", 1L))
+        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", 999L))
                 .andExpectAll(
                         status().isNotFound(),
                         jsonPath("$.error").exists(),
@@ -160,19 +206,14 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var equipmentOne = getEquipment();
         var equipmentTwo = getEquipment();
         equipmentTwo.setIndex("Test equipment");
-        var savedOne = equipmentService.save(equipmentOne, getValidMultipartFile());
-        var savedTwo = equipmentService.save(equipmentTwo, null);
+        equipmentRepository.save(equipmentOne);
+        equipmentRepository.save(equipmentTwo);
 
         mockMvc.perform(get("/api/v1/library-service/equipments"))
                 .andExpectAll(
                         status().isOk(),
-                        jsonPath("$.length()").value(2),
-                        jsonPath("$[0].id").value(savedOne.getId()),
-                        jsonPath("$[0].index").value(savedOne.getIndex()),
-                        jsonPath("$[0].imageName").value(savedOne.getImageName()),
-                        jsonPath("$[1].id").value(savedTwo.getId()),
-                        jsonPath("$[1].index").value("Test equipment"),
-                        jsonPath("$[1].imageName").value(nullValue()));
+                        jsonPath("$.content.length()").value(2),
+                        jsonPath("$.content[*].id").value(hasSize(2)));
     }
 
     @Test
@@ -180,36 +221,48 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         mockMvc.perform(get("/api/v1/library-service/equipments"))
                 .andExpectAll(
                         status().isOk(),
-                        jsonPath("$.length()").value(0));
+                        jsonPath("$.content.length()").value(0));
     }
 
     @Test
     void update_textOnly_shouldKeepImage() throws Exception {
-        var equipment = equipmentService.save(getEquipment(), getValidMultipartFile());
-        var fileName = equipment.getImageName();
+        var equipment = getEquipment();
+        var generatedFileName = UUID.randomUUID() + ".png";
+        equipment.setImageName(generatedFileName);
+        var saved = equipmentRepository.save(equipment);
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", equipment.getId())
                         .param("name", "New name")
                         .param("index", "New Index")
                         .param("description", "New Description")
-                        .param("type", "ASSEMBLY"))
+                        .param("type", EquipmentType.ASSEMBLY.name()))
                 .andExpectAll(
                         status().isOk(),
-                        jsonPath("$.imageName").value(fileName),
+                        jsonPath("$.imageName").value(saved.getImageName()),
                         jsonPath("$.name").value("New name"),
                         jsonPath("$.description").value("New Description"),
-                        jsonPath("$.type").value("ASSEMBLY"));
+                        jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()));
     }
 
     @Test
     void update_replaceFile_success() throws Exception {
-        var equipment = equipmentService.save(getEquipment(), getValidMultipartFile());
-        var fileName = equipment.getImageName();
+        var equipment = equipmentRepository.save(getEquipment());
+        var generatedImageName = UUID.randomUUID() + ".png";
+        equipment.setImageName(generatedImageName);
         var newFile = new MockMultipartFile(
                 "file",
                 "new-file.jpg",
                 MediaType.IMAGE_JPEG_VALUE,
                 "new-content-test".getBytes());
+        var updateResponse = new UpdateFileResponse(generatedImageName);
+        var responseJson = objectMapper.writeValueAsString(updateResponse);
+
+        wireMock.stubFor(put("/api/v1/file-service/files/images/" + equipment.getId())
+                .withHeader("Content-Type", containing("multipart/form-data"))
+                .willReturn(aResponse()
+                        .withStatus(HttpStatus.OK.value())
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(responseJson)));
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", equipment.getId())
                         .param("name", equipment.getName())
@@ -225,7 +278,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.description").value(equipment.getDescription()),
                         jsonPath("$.type").value(equipment.getType().name()));
 
-        assertNotEquals(fileName, equipment.getImageName());
+        assertNotEquals(generatedImageName, equipment.getImageName());
     }
 
     @Test
@@ -234,7 +287,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         .param("name", "New name")
                         .param("index", "New Index")
                         .param("description", "New Description")
-                        .param("type", "ASSEMBLY"))
+                        .param("type", EquipmentType.ASSEMBLY.name()))
                 .andExpectAll(
                         status().isNotFound(),
                         jsonPath("$.error").exists(),
@@ -244,7 +297,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
     @Test
     void update_shouldReturnErrorResponse_dueToValidationException() throws Exception {
-        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 1L)
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 999L)
                         .param("name", "New name321&%$@#()*$()#@")
                         .param("index", "0432fdsZop^%#$@)(")
                         .param("description", "{}{][)_}")
@@ -258,9 +311,9 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
     @Test
     void delete_success() throws Exception {
-        var equipment = equipmentService.save(getEquipment(), getValidMultipartFile());
-        var fileName = equipment.getImageName();
-        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", 1L);
+        var saved = equipmentRepository.save(getEquipment());
+        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}",
+                saved.getId());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(

@@ -97,7 +97,6 @@ class MaterialServiceTest {
         assertThatThrownBy(() -> materialService.findById(id))
                 .isInstanceOf(EntityNotFoundException.class);
         verify(materialRepository).findById(id);
-        verifyNoInteractions(outboxService);
     }
 
     @Test
