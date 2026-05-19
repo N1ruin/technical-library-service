@@ -37,43 +37,15 @@ public class EquipmentService {
 
     @CachePut(value = "equipment", key = "#result.id", unless = "#result == null")
     public Equipment save(Equipment equipment, MultipartFile image) {
-        if (equipmentRepository.existsByIndex(equipment.getIndex())) {
-            throw new EntityAlreadyExistException();
-        }
+        validateEquipmentIndex(equipment);
 
-        String uploadedFileName = null;
-        if (image != null && !image.isEmpty()) {
-            uploadedFileName = fileClient.uploadImage(image).fileName();
-        }
-
-        try {
-            equipment.setImageName(uploadedFileName);
-            var result = equipmentRepository.save(equipment);
-            var outboxRecord = outboxService.createOutboxRecord(
-                    EventType.EQUIPMENT_CREATED,
-                    result,
-                    equipmentMapper::toCreatedEvent);
-            outboxService.save(outboxRecord);
-
-            return result;
-        } catch (Exception e) {
-            if (uploadedFileName != null) {
-                var fileOutboxRecord = outboxService.createOutboxRecord(
-                        EventType.IMAGE_DELETED,
-                        uploadedFileName,
-                        ImageDeletedEvent::new);
-
-                outboxService.saveInNewTransaction(fileOutboxRecord);
-            }
-            throw e;
-        }
+        return hasImage(image) ? saveWithFile(equipment, image) : saveWithoutFile(equipment);
     }
 
     @Cacheable(value = "equipment", key = "#id")
     @Transactional(readOnly = true)
     public Equipment findById(Long id) {
-        return equipmentRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException(id));
+        return findEquipmentById(id);
     }
 
     @Transactional(readOnly = true)
@@ -83,43 +55,16 @@ public class EquipmentService {
 
     @CachePut(value = "equipment", key = "#id")
     public Equipment update(Long id, UpdateEquipmentRequest request) {
-        var equipment = equipmentRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException(id));
+        var equipment = findEquipmentById(id);
 
-        if (!equipment.getIndex().equals(request.index()) && equipmentRepository.existsByIndex(request.index())) {
-            throw new EntityAlreadyExistException();
-        }
+        validateUniqueIndex(equipment.getIndex(), request.index());
 
-        String oldFileName = equipment.getImageName();
-        String newFileName = null;
-
-        if (request.file() != null && !request.file().isEmpty()) {
-            newFileName = fileClient.uploadImage(request.file()).fileName();
-        }
-
-        updateFields(equipment, request, newFileName);
-
-        var updated = equipmentRepository.save(equipment);
-
-        var outboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_UPDATED,
-                equipment,
-                equipmentMapper::toUpdatedEvent);
-        outboxService.save(outboxRecord);
-
-        if (newFileName != null && oldFileName != null) {
-            var fileOutboxRecord = outboxService.createOutboxRecord(EventType.IMAGE_DELETED,
-                    oldFileName,
-                    ImageDeletedEvent::new);
-            outboxService.save(fileOutboxRecord);
-        }
-
-        return updated;
+        return hasImage(request.file()) ? updateWithFile(equipment, request) : updateWithoutFile(equipment, request);
     }
 
     @CacheEvict(value = "equipment", key = "#id")
     public void delete(Long id) {
-        var equipment = equipmentRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException(id));
+        var equipment = findEquipmentById(id);
 
         equipmentRepository.delete(equipment);
 
@@ -135,6 +80,105 @@ public class EquipmentService {
                     ImageDeletedEvent::new);
             outboxService.save(fileOutboxRecord);
         }
+    }
+
+    private void validateEquipmentIndex(Equipment equipment) {
+        if (equipmentRepository.existsByIndex(equipment.getIndex())) {
+            throw new EntityAlreadyExistException();
+        }
+    }
+
+    private boolean hasImage(MultipartFile multipartFile) {
+        return multipartFile != null && !multipartFile.isEmpty();
+    }
+
+    private Equipment saveWithFile(Equipment equipment, MultipartFile image) {
+        String newFileName = fileClient.uploadImage(image).fileName();
+
+        try {
+            return saveEquipment(equipment, newFileName);
+        } catch (Exception e) {
+            rollbackUploadedImage(newFileName);
+
+            throw e;
+        }
+    }
+
+    private Equipment saveWithoutFile(Equipment equipment) {
+        return saveEquipment(equipment, null);
+    }
+
+    private Equipment saveEquipment(Equipment equipment, String imageName) {
+        equipment.setImageName(imageName);
+        var result = equipmentRepository.save(equipment);
+
+        var outboxRecord = outboxService.createOutboxRecord(
+                EventType.EQUIPMENT_CREATED,
+                result,
+                equipmentMapper::toCreatedEvent);
+        outboxService.save(outboxRecord);
+
+        return result;
+    }
+
+    private void rollbackUploadedImage(String newFileName) {
+        if (newFileName == null) {
+            return;
+        }
+
+        var fileOutboxRecord = outboxService.createOutboxRecord(EventType.IMAGE_DELETED,
+                newFileName,
+                ImageDeletedEvent::new);
+        outboxService.saveInNewTransaction(fileOutboxRecord);
+    }
+
+    private Equipment findEquipmentById(Long id) {
+        return equipmentRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException(id));
+    }
+
+    private void validateUniqueIndex(String currentIndex, String newIndex) {
+        if (!currentIndex.equals(newIndex) && equipmentRepository.existsByIndex(newIndex)) {
+            throw new EntityAlreadyExistException();
+        }
+    }
+
+    private Equipment updateWithFile(Equipment equipment, UpdateEquipmentRequest request) {
+        var oldFileName = equipment.getImageName();
+        var newFileName = fileClient.uploadImage(request.file()).fileName();
+
+        try {
+            var updated = updateEquipment(equipment, request, newFileName);
+
+            if (oldFileName != null) {
+                var fileOutboxRecord = outboxService.createOutboxRecord(EventType.IMAGE_DELETED,
+                        oldFileName,
+                        ImageDeletedEvent::new);
+                outboxService.save(fileOutboxRecord);
+            }
+
+            return updated;
+        } catch (Exception e) {
+            rollbackUploadedImage(newFileName);
+            throw e;
+        }
+    }
+
+    private Equipment updateWithoutFile(Equipment equipment, UpdateEquipmentRequest request) {
+        return updateEquipment(equipment, request, null);
+    }
+
+    private Equipment updateEquipment(Equipment equipment, UpdateEquipmentRequest request, String newFileName) {
+        updateFields(equipment, request, newFileName);
+        var updated = equipmentRepository.save(equipment);
+
+        var outboxRecord = outboxService.createOutboxRecord(
+                EventType.EQUIPMENT_UPDATED,
+                updated,
+                equipmentMapper::toUpdatedEvent);
+        outboxService.save(outboxRecord);
+
+        return updated;
     }
 
     private void updateFields(Equipment equipment, UpdateEquipmentRequest request, String newFileName) {

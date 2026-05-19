@@ -8,7 +8,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 @Entity
-@Table(name = "transaction_outbox")
+@Table(name = "transaction_outbox", schema = "library")
 @EntityListeners(AuditingEntityListener.class)
 public class TransactionOutboxRecord {
     @Id

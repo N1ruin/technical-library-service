@@ -3,6 +3,8 @@ package by.niruin.library.config;
 import by.niruin.library.model.event.EventType;
 import com.redis.testcontainers.RedisContainer;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.streams.processor.To;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -36,6 +38,30 @@ public class TestConfig {
     @Bean
     public NewTopic materialTopic() {
         return TopicBuilder.name(EventType.MATERIAL_CREATED.getTopicName())
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic fileDeletionTopic() {
+        return TopicBuilder.name(EventType.IMAGE_DELETED.getTopicName())
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic instructionTopic() {
+        return TopicBuilder.name(EventType.SAFETY_INSTRUCTION_DELETED.getTopicName())
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic equipmentTopic() {
+        return TopicBuilder.name(EventType.EQUIPMENT_DELETED.getTopicName())
                 .partitions(1)
                 .replicas(1)
                 .build();

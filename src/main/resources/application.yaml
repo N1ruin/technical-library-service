@@ -28,13 +28,13 @@ spring:
       cache-null-values: false
 logging:
   level:
-    root: TRACE
-    by.niruin.library.client.FileClient: DEBUG
-    feign: DEBUG
-    feign.codec: DEBUG
-    com.github.tomakehurst.wiremock: DEBUG
-    org.apache.http: DEBUG
-    wiremock: DEBUG
+    root: ERROR
+    by.niruin.library.client.FileClient: ERROR
+    feign: ERROR
+    feign.codec: ERROR
+    com.github.tomakehurst.wiremock: ERROR
+    org.apache.http: ERROR
+    wiremock: ERROR
 
 server:
   port: 8082

@@ -7,6 +7,5 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration
 @EnableScheduling
-@Profile("dev")
 public class SchedulingConfiguration {
 }
