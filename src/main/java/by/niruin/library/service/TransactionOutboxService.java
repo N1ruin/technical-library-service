@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
@@ -40,6 +41,7 @@ public class TransactionOutboxService {
 
         var event = eventMapper.apply(object);
         outboxRecord.setPayload(objectMapper.writeValueAsString(event));
+        outboxRecord.setTimestamp(Instant.now());
 
         return outboxRecord;
     }
