@@ -461,7 +461,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
 
         var kafkaConsumer = new KafkaConsumer<String, String>(props);
-        kafkaConsumer.subscribe(List.of(EventType.EQUIPMENT_CREATED.getTopicName(), EventType.IMAGE_DELETED.getTopicName()));
+        kafkaConsumer.subscribe(List.of(EventType.EQUIPMENT_CREATED.getTopicName(), EventType.IMAGE_DELETED.getTopicName(),
+                EventType.EQUIPMENT_DELETED.getTopicName()));
         kafkaConsumer.poll(Duration.ofMillis(100));
 
         return kafkaConsumer;
