@@ -22,29 +22,28 @@ public class KafkaProducer {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    @Scheduled(timeUnit = TimeUnit.SECONDS, fixedDelay = 10)
+    @Scheduled(timeUnit = TimeUnit.SECONDS, fixedDelay = 5)
     public void produce() {
         var records = transactionOutboxService.findBatchRecords(10);
         for (var record : records) {
-            try {
-                var result = kafkaTemplate.send(
-                                record.getEventType().getTopicName(),
-                                record.getId().toString(),
-                                record.getPayload())
-                        .get(5, TimeUnit.SECONDS);
+            kafkaTemplate.send(
+                            record.getEventType().getTopicName(),
+                            record.getId().toString(),
+                            record.getPayload())
+                    .toCompletableFuture()
+                    .whenComplete((result, exception) -> {
+                        if (exception == null) {
+                            var metadata = result.getRecordMetadata();
+                            logger.info("Message sent successfully! Topic: {}, Partition: {}, offset: {}",
+                                    metadata.topic(),
+                                    metadata.partition(),
+                                    metadata.offset());
 
-                transactionOutboxService.delete(record);
-
-                logger.info("Message sent successfully! Topic: {}, Partition: {}, offset: {}",
-                        result.getRecordMetadata().topic(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            } catch (TimeoutException e) {
-                logger.error("Timeout sending message: {}", record.getId(), e);
-            } catch (Exception e) {
-                logger.error("Failed to send message: {}", record.getId(), e);
-                break;
-            }
+                            transactionOutboxService.delete(record);
+                        } else {
+                            logger.error("Failed to send message: {}", exception.getMessage(), exception);
+                        }
+                    });
         }
     }
 }

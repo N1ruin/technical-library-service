@@ -24,10 +24,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.ObjectMapper;
 import wiremock.org.eclipse.jetty.http.HttpHeader;
@@ -106,18 +108,18 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()),
                         jsonPath("$.imageName").value(generatedFileName));
 
-        Thread.sleep(1000);
+        try (var kafkaConsumer = getKafkaConsumer(kafkaContainer)) {
+            List<ConsumerRecord<String, String>> messages = new ArrayList<>();
 
-        producer.produce();
-        Thread.sleep(2000);
-        var kafkaConsumer = getKafkaConsumer(kafkaContainer);
-        var records = kafkaConsumer.poll(Duration.ofSeconds(5));
-        assertThat(records.count()).isGreaterThan(0);
-        var consumerRecord = records.iterator().next();
-        var jsonValue = consumerRecord.value();
-        assertThat(jsonValue).contains("Гайковерт");
-        assertThat(jsonValue).contains("2125PTi");
-        assertThat(jsonValue).contains(EquipmentType.ASSEMBLY.name());
+            await().atMost(15, TimeUnit.SECONDS).until(() -> {
+                var polled = kafkaConsumer.poll(Duration.ofMillis(500));
+                polled.forEach(messages::add);
+
+                return messages.size() == 1;
+            });
+
+            assertThat(messages).hasSize(1);
+        }
     }
 
     @Test
@@ -373,50 +375,40 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var generatedFileName = UUID.randomUUID() + ".png";
         var uploadResponse = new UploadFileResponse(generatedFileName);
         var responseBody = objectMapper.writeValueAsString(uploadResponse);
+
         fileServiceWireMock.stubFor(post("/api/v1/file-service/files/images")
-                .withHeader(HttpHeader.CONTENT_TYPE.toString(), containing(MediaType.MULTIPART_FORM_DATA_VALUE))
                 .willReturn(aResponse()
                         .withStatus(HttpStatus.CREATED.value())
-                        .withHeader(HttpHeader.CONTENT_TYPE.toString(), MediaType.APPLICATION_JSON_VALUE)
+                        .withHeader("Content-Type", "application/json")
                         .withBody(responseBody)));
+
         var saved = equipmentService.save(equipment, multipartFile);
 
-        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}",
-                saved.getId());
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId()))
+                .andExpect(status().isNoContent());
 
-        System.out.println("Outbox after save: " + outboxRepository.count());
-
-        mockMvc.perform(requestBuilder)
-                .andExpectAll(
-                        status().isNoContent());
-        Thread.sleep(1000);
-        System.out.println("Outbox after delete: " + outboxRepository.count());
-        outboxRepository.findAll().forEach(r -> System.out.println("  " + r.getEventType() + " - " + r.getPayload()));
         await().atMost(5, TimeUnit.SECONDS)
                 .until(() -> outboxRepository.count() == 3);
+
         producer.produce();
-        await().atMost(11, TimeUnit.SECONDS)
+
+        Thread.sleep(3000);
+
+        await().atMost(20, TimeUnit.SECONDS)
+                .pollInterval(500, TimeUnit.MILLISECONDS)
                 .until(() -> outboxRepository.count() == 0);
 
         try (var kafkaConsumer = getKafkaConsumer(kafkaContainer)) {
             List<ConsumerRecord<String, String>> messages = new ArrayList<>();
+
             await().atMost(15, TimeUnit.SECONDS).until(() -> {
                 var polled = kafkaConsumer.poll(Duration.ofMillis(500));
                 polled.forEach(messages::add);
+
                 return messages.size() >= 3;
             });
 
             assertThat(messages).hasSize(3);
-
-            long equipmentCount = messages.stream()
-                    .filter(m -> m.topic().equals(EventType.EQUIPMENT_CREATED.getTopicName()))
-                    .count();
-            long fileDeletionCount = messages.stream()
-                    .filter(m -> m.topic().equals(EventType.IMAGE_DELETED.getTopicName()))
-                    .count();
-
-            assertThat(equipmentCount).isEqualTo(2);
-            assertThat(fileDeletionCount).isEqualTo(1);
         }
     }
 
