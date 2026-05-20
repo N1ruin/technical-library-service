@@ -34,7 +34,7 @@ public class KafkaProducer {
                     .whenComplete((result, exception) -> {
                         if (exception == null) {
                             var metadata = result.getRecordMetadata();
-                            logger.info("Message sent successfully! Topic: {}, Partition: {}, offset: {}",
+                            logger.info("Message sent successfully. Topic: {}, Partition: {}, offset: {}",
                                     metadata.topic(),
                                     metadata.partition(),
                                     metadata.offset());

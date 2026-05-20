@@ -24,12 +24,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.ObjectMapper;
 import wiremock.org.eclipse.jetty.http.HttpHeader;
@@ -461,7 +459,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
 
         var kafkaConsumer = new KafkaConsumer<String, String>(props);
-        kafkaConsumer.subscribe(List.of(EventType.EQUIPMENT_CREATED.getTopicName(), EventType.IMAGE_DELETED.getTopicName(),
+        kafkaConsumer.subscribe(List.of(EventType.EQUIPMENT_CREATED.getTopicName(), EventType.EQUIPMENT_SAVE_SUCCESS_EVENT.getTopicName(),
                 EventType.EQUIPMENT_DELETED.getTopicName()));
         kafkaConsumer.poll(Duration.ofMillis(100));
 

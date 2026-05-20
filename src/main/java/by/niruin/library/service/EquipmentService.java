@@ -3,12 +3,12 @@ package by.niruin.library.service;
 import by.niruin.library.client.FileClient;
 import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
-import by.niruin.library.model.event.EventType;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.mapper.EquipmentMapper;
 import by.niruin.library.model.equipment.UpdateEquipmentRequest;
-import by.niruin.library.model.event.file.ImageDeletedEvent;
+import by.niruin.library.model.event.EventType;
+import by.niruin.library.model.event.file.EquipmentSaveSuccessEvent;
 import by.niruin.library.repository.EquipmentRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
-@Transactional
 public class EquipmentService {
     private final FileClient fileClient;
     private final EquipmentRepository equipmentRepository;
@@ -35,6 +34,7 @@ public class EquipmentService {
         this.equipmentMapper = equipmentMapper;
     }
 
+    @Transactional
     @CachePut(value = "equipment", key = "#result.id", unless = "#result == null")
     public Equipment save(Equipment equipment, MultipartFile image) {
         validateEquipmentIndex(equipment);
@@ -53,6 +53,7 @@ public class EquipmentService {
         return equipmentRepository.findAll(pageable);
     }
 
+    @Transactional
     @CachePut(value = "equipment", key = "#id")
     public Equipment update(Long id, UpdateEquipmentRequest request) {
         var equipment = findEquipmentById(id);
@@ -62,6 +63,7 @@ public class EquipmentService {
         return hasImage(request.file()) ? updateWithFile(equipment, request) : updateWithoutFile(equipment, request);
     }
 
+    @Transactional
     @CacheEvict(value = "equipment", key = "#id")
     public void delete(Long id) {
         var equipment = findEquipmentById(id);
@@ -75,9 +77,9 @@ public class EquipmentService {
 
         var fileName = equipment.getImageName();
         if (fileName != null) {
-            var fileOutboxRecord = outboxService.createOutboxRecord(EventType.IMAGE_DELETED,
+            var fileOutboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT,
                     fileName,
-                    ImageDeletedEvent::new);
+                    EquipmentSaveSuccessEvent::new);
             outboxService.save(fileOutboxRecord);
         }
     }
@@ -126,9 +128,9 @@ public class EquipmentService {
             return;
         }
 
-        var fileOutboxRecord = outboxService.createOutboxRecord(EventType.IMAGE_DELETED,
+        var fileOutboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT,
                 newFileName,
-                ImageDeletedEvent::new);
+                EquipmentSaveSuccessEvent::new);
         outboxService.saveInNewTransaction(fileOutboxRecord);
     }
 
@@ -151,9 +153,9 @@ public class EquipmentService {
             var updated = updateEquipment(equipment, request, newFileName);
 
             if (oldFileName != null) {
-                var fileOutboxRecord = outboxService.createOutboxRecord(EventType.IMAGE_DELETED,
+                var fileOutboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT,
                         oldFileName,
-                        ImageDeletedEvent::new);
+                        EquipmentSaveSuccessEvent::new);
                 outboxService.save(fileOutboxRecord);
             }
 

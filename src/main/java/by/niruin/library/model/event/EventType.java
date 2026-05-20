@@ -10,7 +10,7 @@ public enum EventType {
     MATERIAL_CREATED("material-topic"),
     MATERIAL_UPDATED(MATERIAL_CREATED.getTopicName()),
     MATERIAL_DELETED(MATERIAL_CREATED.getTopicName()),
-    IMAGE_DELETED("file-deletion-topic");
+    EQUIPMENT_SAVE_SUCCESS_EVENT("file-topic");
 
     private final String topicName;
 

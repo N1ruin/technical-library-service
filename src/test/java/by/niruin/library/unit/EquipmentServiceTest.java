@@ -72,7 +72,7 @@ public class EquipmentServiceTest {
         verify(equipmentRepository).existsByIndex(equipment.getIndex());
         verify(fileClient).uploadImage(image);
         verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any());
-        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), any(String.class), any());
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), any(String.class), any());
         verify(outboxService, never()).saveInNewTransaction(any(TransactionOutboxRecord.class));
     }
 
@@ -106,7 +106,7 @@ public class EquipmentServiceTest {
         assertThat(saved.getImageName()).isNull();
         assertThat(saved).usingRecursiveComparison()
                 .isEqualTo(equipment);
-        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(equipment), any());
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), eq(equipment), any());
         verify(outboxService, never()).saveInNewTransaction(any(TransactionOutboxRecord.class));
     }
 
@@ -145,7 +145,7 @@ public class EquipmentServiceTest {
                 .thenReturn(outboxRecord);
         doThrow(RuntimeException.class).when(outboxService).save(outboxRecord);
         var fileDeletionOutboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(equipment.getImageName()), any()))
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), eq(equipment.getImageName()), any()))
                 .thenReturn(fileDeletionOutboxRecord);
 
         assertThatThrownBy(() -> equipmentService.save(equipment, image))
@@ -156,7 +156,7 @@ public class EquipmentServiceTest {
         verify(equipmentRepository).save(equipment);
         verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_CREATED), eq(equipment), any());
         verify(outboxService).save(outboxRecord);
-        verify(outboxService).createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(equipment.getImageName()), any());
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), eq(equipment.getImageName()), any());
         verify(outboxService).saveInNewTransaction(fileDeletionOutboxRecord);
     }
 
@@ -236,7 +236,7 @@ public class EquipmentServiceTest {
         var deleteOutboxRecord = mock(TransactionOutboxRecord.class);
         when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), any(Equipment.class), any()))
                 .thenReturn(updateOutboxRecord);
-        when(outboxService.createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(oldFileName), any()))
+        when(outboxService.createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), eq(oldFileName), any()))
                 .thenReturn(deleteOutboxRecord);
 
         var result = equipmentService.update(id, updateRequest);
@@ -249,7 +249,7 @@ public class EquipmentServiceTest {
         verify(equipmentRepository).save(equipment);
         verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any());
         verify(outboxService).save(updateOutboxRecord);
-        verify(outboxService).createOutboxRecord(eq(EventType.IMAGE_DELETED), eq(oldFileName), any());
+        verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), eq(oldFileName), any());
         verify(outboxService).save(deleteOutboxRecord);
     }
 
@@ -280,7 +280,7 @@ public class EquipmentServiceTest {
         verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any());
         verify(outboxService).save(updateOutboxRecord);
         verifyNoInteractions(fileClient);
-        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), any(), any());
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), any(), any());
     }
 
     @Test
@@ -372,7 +372,7 @@ public class EquipmentServiceTest {
         verify(equipmentRepository).save(equipment);
         verify(outboxService).createOutboxRecord(eq(EventType.EQUIPMENT_UPDATED), eq(equipment), any());
         verify(outboxService).save(updateOutboxRecord);
-        verify(outboxService, never()).createOutboxRecord(eq(EventType.IMAGE_DELETED), any(), any());
+        verify(outboxService, never()).createOutboxRecord(eq(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT), any(), any());
     }
 
     @Test
