@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
 public class SafetyInstructionService {
     private final SafetyInstructionRepository instructionRepository;
     private final SafetyInstructionMapper instructionMapper;
@@ -31,6 +30,7 @@ public class SafetyInstructionService {
         this.transactionOutboxService = transactionOutboxService;
     }
 
+    @Transactional
     @CachePut(value = "instruction", key = "#result.id", unless = "#result == null")
     public SafetyInstruction save(SafetyInstruction instruction) {
         if (instructionRepository.existsByNumber(instruction.getNumber())) {
@@ -60,6 +60,7 @@ public class SafetyInstructionService {
         return instructionRepository.findAll(pageable);
     }
 
+    @Transactional
     @CachePut(value = "instruction", key = "#id")
     public SafetyInstruction update(Long id, @Valid UpdateSafetyInstructionRequest request) {
         var instruction = instructionRepository.findById(id)
@@ -80,6 +81,7 @@ public class SafetyInstructionService {
         return instruction;
     }
 
+    @Transactional
     @CacheEvict(value = "instruction", key = "#id")
     public void deleteById(Long id) {
         var instruction = instructionRepository.findById(id)

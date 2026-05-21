@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
 public class MaterialService {
     private final MaterialRepository materialRepository;
     private final MaterialMapper materialMapper;
@@ -29,6 +28,7 @@ public class MaterialService {
         this.transactionOutboxService = transactionOutboxService;
     }
 
+    @Transactional
     @CachePut(value = "material", key = "#result.id", unless = "#result == null")
     public Material save(Material material) {
         var name = material.getName();
@@ -61,6 +61,7 @@ public class MaterialService {
         return materialRepository.findAll(pageable);
     }
 
+    @Transactional
     @CachePut(value = "material", key = "#result.id")
     public Material update(Long id, UpdateMaterialRequest request) {
         var material = materialRepository.findById(id)
@@ -82,6 +83,7 @@ public class MaterialService {
         return material;
     }
 
+    @Transactional
     @CacheEvict(value = "material", key = "#id")
     public void deleteById(Long id) {
         var deletedMaterial = materialRepository.findById(id)

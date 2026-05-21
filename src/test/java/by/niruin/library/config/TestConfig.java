@@ -43,7 +43,7 @@ public class TestConfig {
 
     @Bean
     public NewTopic fileDeletionTopic() {
-        return TopicBuilder.name(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT.getTopicName())
+        return TopicBuilder.name(EventType.FILE_MARKED_FOR_DELETION.getTopicName())
                 .partitions(1)
                 .replicas(1)
                 .build();

@@ -7,3 +7,6 @@ logging:
     com.github.tomakehurst.wiremock: ERROR
     org.apache.http: ERROR
     wiremock: ERROR
+
+file-service:
+  url: http://localhost:9999

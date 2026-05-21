@@ -8,7 +8,8 @@ import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.mapper.EquipmentMapper;
 import by.niruin.library.model.equipment.UpdateEquipmentRequest;
 import by.niruin.library.model.event.EventType;
-import by.niruin.library.model.event.file.EquipmentSaveSuccessEvent;
+import by.niruin.library.model.event.file.EquipmentOperationSuccessfulEvent;
+import by.niruin.library.model.event.file.FileDeletedEvent;
 import by.niruin.library.repository.EquipmentRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -25,21 +27,36 @@ public class EquipmentService {
     private final EquipmentRepository equipmentRepository;
     private final TransactionOutboxService outboxService;
     private final EquipmentMapper equipmentMapper;
+    private final TransactionTemplate transactionTemplate;
 
     public EquipmentService(FileClient fileClient, EquipmentRepository equipmentRepository,
-                            TransactionOutboxService outboxService, EquipmentMapper equipmentMapper) {
+                            TransactionOutboxService outboxService, EquipmentMapper equipmentMapper,
+                            TransactionTemplate transactionTemplate) {
         this.fileClient = fileClient;
         this.equipmentRepository = equipmentRepository;
         this.outboxService = outboxService;
         this.equipmentMapper = equipmentMapper;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
-    @CachePut(value = "equipment", key = "#result.id", unless = "#result == null")
-    public Equipment save(Equipment equipment, MultipartFile image) {
-        validateEquipmentIndex(equipment);
+    @CachePut(value = "equipment", key = "#result.id")
+    public Equipment save(Equipment equipment, MultipartFile file) {
+        final String fileName = uploadFile(file);
 
-        return hasImage(image) ? saveWithFile(equipment, image) : saveWithoutFile(equipment);
+        return transactionTemplate.execute(status -> {
+            validateEquipmentIndex(equipment.getIndex());
+
+            equipment.setImageName(fileName);
+            var saved = equipmentRepository.save(equipment);
+
+            publishEquipmentCreatedEvent(saved);
+
+            if (fileName != null) {
+                publishMoveFileOutboxRecord(fileName);
+            }
+
+            return saved;
+        });
     }
 
     @Cacheable(value = "equipment", key = "#id")
@@ -53,14 +70,29 @@ public class EquipmentService {
         return equipmentRepository.findAll(pageable);
     }
 
-    @Transactional
     @CachePut(value = "equipment", key = "#id")
     public Equipment update(Long id, UpdateEquipmentRequest request) {
-        var equipment = findEquipmentById(id);
+        final String newFileName = uploadFile(request.file());
 
-        validateUniqueIndex(equipment.getIndex(), request.index());
+        return transactionTemplate.execute(status -> {
+            var existing = findEquipmentById(id);
+            validateUniqueIndex(existing.getIndex(), request.index());
 
-        return hasImage(request.file()) ? updateWithFile(equipment, request) : updateWithoutFile(equipment, request);
+            var oldFileName = existing.getImageName();
+            updateFields(existing, request, newFileName);
+
+            publishEquipmentUpdatedEvent(existing);
+
+            if (newFileName != null) {
+                publishMoveFileOutboxRecord(newFileName);
+
+                if (oldFileName != null) {
+                    publishFileDeletionEvent(oldFileName);
+                }
+            }
+
+            return existing;
+        });
     }
 
     @Transactional
@@ -70,68 +102,23 @@ public class EquipmentService {
 
         equipmentRepository.delete(equipment);
 
-        var outboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_DELETED,
-                equipment,
-                equipmentMapper::toDeletedEvent);
-        outboxService.save(outboxRecord);
+        publishEquipmentDeletedEvent(equipment);
 
-        var fileName = equipment.getImageName();
-        if (fileName != null) {
-            var fileOutboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT,
-                    fileName,
-                    EquipmentSaveSuccessEvent::new);
-            outboxService.save(fileOutboxRecord);
-        }
+        publishFileDeletionEvent(equipment.getImageName());
     }
 
-    private void validateEquipmentIndex(Equipment equipment) {
-        if (equipmentRepository.existsByIndex(equipment.getIndex())) {
-            throw new EntityAlreadyExistException();
-        }
+    private String uploadFile(MultipartFile file) {
+        return hasImage(file) ? fileClient.uploadImage(file).fileName() : null;
     }
 
     private boolean hasImage(MultipartFile multipartFile) {
         return multipartFile != null && !multipartFile.isEmpty();
     }
 
-    private Equipment saveWithFile(Equipment equipment, MultipartFile image) {
-        String newFileName = fileClient.uploadImage(image).fileName();
-
-        try {
-            return saveEquipment(equipment, newFileName);
-        } catch (Exception e) {
-            rollbackUploadedImage(newFileName);
-
-            throw e;
+    private void validateEquipmentIndex(String index) {
+        if (equipmentRepository.existsByIndex(index)) {
+            throw new EntityAlreadyExistException();
         }
-    }
-
-    private Equipment saveWithoutFile(Equipment equipment) {
-        return saveEquipment(equipment, null);
-    }
-
-    private Equipment saveEquipment(Equipment equipment, String imageName) {
-        equipment.setImageName(imageName);
-        var result = equipmentRepository.save(equipment);
-
-        var outboxRecord = outboxService.createOutboxRecord(
-                EventType.EQUIPMENT_CREATED,
-                result,
-                equipmentMapper::toCreatedEvent);
-        outboxService.save(outboxRecord);
-
-        return result;
-    }
-
-    private void rollbackUploadedImage(String newFileName) {
-        if (newFileName == null) {
-            return;
-        }
-
-        var fileOutboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT,
-                newFileName,
-                EquipmentSaveSuccessEvent::new);
-        outboxService.saveInNewTransaction(fileOutboxRecord);
     }
 
     private Equipment findEquipmentById(Long id) {
@@ -145,44 +132,6 @@ public class EquipmentService {
         }
     }
 
-    private Equipment updateWithFile(Equipment equipment, UpdateEquipmentRequest request) {
-        var oldFileName = equipment.getImageName();
-        var newFileName = fileClient.uploadImage(request.file()).fileName();
-
-        try {
-            var updated = updateEquipment(equipment, request, newFileName);
-
-            if (oldFileName != null) {
-                var fileOutboxRecord = outboxService.createOutboxRecord(EventType.EQUIPMENT_SAVE_SUCCESS_EVENT,
-                        oldFileName,
-                        EquipmentSaveSuccessEvent::new);
-                outboxService.save(fileOutboxRecord);
-            }
-
-            return updated;
-        } catch (Exception e) {
-            rollbackUploadedImage(newFileName);
-            throw e;
-        }
-    }
-
-    private Equipment updateWithoutFile(Equipment equipment, UpdateEquipmentRequest request) {
-        return updateEquipment(equipment, request, null);
-    }
-
-    private Equipment updateEquipment(Equipment equipment, UpdateEquipmentRequest request, String newFileName) {
-        updateFields(equipment, request, newFileName);
-        var updated = equipmentRepository.save(equipment);
-
-        var outboxRecord = outboxService.createOutboxRecord(
-                EventType.EQUIPMENT_UPDATED,
-                updated,
-                equipmentMapper::toUpdatedEvent);
-        outboxService.save(outboxRecord);
-
-        return updated;
-    }
-
     private void updateFields(Equipment equipment, UpdateEquipmentRequest request, String newFileName) {
         equipment.setName(request.name());
         equipment.setIndex(request.index());
@@ -191,6 +140,47 @@ public class EquipmentService {
 
         if (newFileName != null) {
             equipment.setImageName(newFileName);
+        }
+    }
+
+    private void publishEquipmentCreatedEvent(Equipment equipment) {
+        var equipmentCreatedEvent = outboxService.createOutboxRecord(
+                EventType.EQUIPMENT_CREATED,
+                equipment,
+                equipmentMapper::toCreatedEvent);
+        outboxService.save(equipmentCreatedEvent);
+    }
+
+    private void publishEquipmentDeletedEvent(Equipment equipment) {
+        var equipmentDeletionEvent = outboxService.createOutboxRecord(EventType.EQUIPMENT_DELETED,
+                equipment,
+                equipmentMapper::toDeletedEvent);
+        outboxService.save(equipmentDeletionEvent);
+    }
+
+    private void publishEquipmentUpdatedEvent(Equipment equipment) {
+        var notificationOutboxRecord = outboxService.createOutboxRecord(
+                EventType.EQUIPMENT_UPDATED,
+                equipment,
+                equipmentMapper::toUpdatedEvent);
+        outboxService.save(notificationOutboxRecord);
+    }
+
+    private void publishMoveFileOutboxRecord(String fileName) {
+        var moveFileOutboxRecord = outboxService.createOutboxRecord(
+                EventType.FILE_MOVE_TO_PERMANENT_STORAGE,
+                fileName,
+                EquipmentOperationSuccessfulEvent::new);
+        outboxService.save(moveFileOutboxRecord);
+    }
+
+    private void publishFileDeletionEvent(String oldFileName) {
+        if (oldFileName != null) {
+            var deleteFileOutboxRecord = outboxService.createOutboxRecord(
+                    EventType.FILE_MARKED_FOR_DELETION,
+                    oldFileName,
+                    FileDeletedEvent::new);
+            outboxService.save(deleteFileOutboxRecord);
         }
     }
 }

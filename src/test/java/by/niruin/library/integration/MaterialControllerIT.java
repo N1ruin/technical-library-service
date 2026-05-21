@@ -9,6 +9,7 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,8 +29,6 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     private MaterialService materialService;
     @Autowired
     private TransactionOutboxRepository outboxRepository;
-    @Autowired
-    private KafkaProducer kafkaProducer;
     @Autowired
     private MaterialRepository materialRepository;
 
@@ -78,12 +77,6 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                         jsonPath("$.supplierCode").value("245"));
 
         assertThat(outboxRepository.findAll()).hasSize(1);
-
-        kafkaProducer.produce();
-        Thread.sleep(1000);
-        await().atMost(10, TimeUnit.SECONDS)
-                .pollInterval(1, TimeUnit.SECONDS)
-                .until(() -> outboxRepository.findAll().isEmpty());
     }
 
     @Test

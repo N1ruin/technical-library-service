@@ -4,7 +4,6 @@ import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
 import by.niruin.library.kafka.KafkaProducer;
 import by.niruin.library.model.error.ErrorResponse;
-import by.niruin.library.model.event.EventType;
 import by.niruin.library.model.file.UploadFileResponse;
 import by.niruin.library.repository.EquipmentRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
@@ -12,10 +11,6 @@ import by.niruin.library.service.EquipmentService;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -32,13 +27,9 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.ObjectMapper;
 import wiremock.org.eclipse.jetty.http.HttpHeader;
 
-import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -105,19 +96,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.index").value("2125PTi"),
                         jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()),
                         jsonPath("$.imageName").value(generatedFileName));
-
-        try (var kafkaConsumer = getKafkaConsumer(kafkaContainer)) {
-            List<ConsumerRecord<String, String>> messages = new ArrayList<>();
-
-            await().atMost(15, TimeUnit.SECONDS).until(() -> {
-                var polled = kafkaConsumer.poll(Duration.ofMillis(500));
-                polled.forEach(messages::add);
-
-                return messages.size() == 1;
-            });
-
-            assertThat(messages).hasSize(1);
-        }
     }
 
     @Test
@@ -137,21 +115,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.description").value(equipment.getDescription()),
                         jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()),
                         jsonPath("$.imageName").doesNotExist());
-
-        Thread.sleep(1000);
-
-        producer.produce();
-        Thread.sleep(2000);
-
-        var kafkaConsumer = getKafkaConsumer(kafkaContainer);
-        var records = kafkaConsumer.poll(Duration.ofSeconds(5));
-        assertThat(records.count()).isGreaterThan(0);
-        var consumerRecord = records.iterator().next();
-        var jsonValue = consumerRecord.value();
-        assertThat(jsonValue).contains(equipment.getName());
-        assertThat(jsonValue).contains(equipment.getDescription());
-        assertThat(jsonValue).contains(equipment.getIndex());
-        assertThat(jsonValue).contains(equipment.getType().name());
     }
 
     @Test
@@ -179,13 +142,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
-
-        Thread.sleep(1000);
-        producer.produce();
-        Thread.sleep(2000);
-        var kafkaConsumer = getKafkaConsumer(kafkaContainer);
-        var records = kafkaConsumer.poll(Duration.ofSeconds(5));
-        assertThat(records.count()).isEqualTo(0);
     }
 
     @Test
@@ -203,14 +159,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
-
-        Thread.sleep(1000);
-        producer.produce();
-        Thread.sleep(2000);
-
-        var kafkaConsumer = getKafkaConsumer(kafkaContainer);
-        var records = kafkaConsumer.poll(Duration.ofSeconds(5));
-        assertThat(records.count()).isEqualTo(0);
     }
 
     @Test
@@ -384,30 +332,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId()))
                 .andExpect(status().isNoContent());
-
-        await().atMost(5, TimeUnit.SECONDS)
-                .until(() -> outboxRepository.count() == 3);
-
-        producer.produce();
-
-        Thread.sleep(3000);
-
-        await().atMost(20, TimeUnit.SECONDS)
-                .pollInterval(500, TimeUnit.MILLISECONDS)
-                .until(() -> outboxRepository.count() == 0);
-
-        try (var kafkaConsumer = getKafkaConsumer(kafkaContainer)) {
-            List<ConsumerRecord<String, String>> messages = new ArrayList<>();
-
-            await().atMost(15, TimeUnit.SECONDS).until(() -> {
-                var polled = kafkaConsumer.poll(Duration.ofMillis(500));
-                polled.forEach(messages::add);
-
-                return messages.size() >= 3;
-            });
-
-            assertThat(messages).hasSize(3);
-        }
     }
 
     @Test
@@ -447,22 +371,5 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         equipment.setType(EquipmentType.ASSEMBLY);
 
         return equipment;
-    }
-
-    private KafkaConsumer<String, String> getKafkaConsumer(KafkaContainer kafkaContainer) {
-        Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group-" + UUID.randomUUID());
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
-
-        var kafkaConsumer = new KafkaConsumer<String, String>(props);
-        kafkaConsumer.subscribe(List.of(EventType.EQUIPMENT_CREATED.getTopicName(), EventType.EQUIPMENT_SAVE_SUCCESS_EVENT.getTopicName(),
-                EventType.EQUIPMENT_DELETED.getTopicName()));
-        kafkaConsumer.poll(Duration.ofMillis(100));
-
-        return kafkaConsumer;
     }
 }

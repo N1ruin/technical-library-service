@@ -29,11 +29,6 @@ public class TransactionOutboxService {
         outboxRepository.save(outboxRecord);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveInNewTransaction(TransactionOutboxRecord outboxRecord) {
-        outboxRepository.save(outboxRecord);
-    }
-
     public <T extends MessageBrokerEvent, O> TransactionOutboxRecord createOutboxRecord(EventType eventType, O object,
                                                                                         Function<O, T> eventMapper) {
         var outboxRecord = new TransactionOutboxRecord();
