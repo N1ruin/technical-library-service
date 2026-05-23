@@ -1,15 +1,12 @@
 package by.niruin.library.unit;
 
-import by.niruin.library.model.event.EventType;
 import by.niruin.library.domain.SafetyInstruction;
-import by.niruin.library.domain.TransactionOutboxRecord;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
-import by.niruin.library.mapper.SafetyInstructionMapper;
+import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.instruction.UpdateSafetyInstructionRequest;
 import by.niruin.library.repository.SafetyInstructionRepository;
 import by.niruin.library.service.SafetyInstructionService;
-import by.niruin.library.service.TransactionOutboxService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,20 +20,17 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 public class SafetyInstructionServiceTest {
     @Mock
     private SafetyInstructionRepository instructionRepository;
     @Mock
-    private SafetyInstructionMapper safetyInstructionMapper;
-    @Mock
-    private TransactionOutboxService outboxService;
+    private EventPublisher eventPublisher;
     @InjectMocks
     private SafetyInstructionService instructionService;
 
@@ -47,18 +41,14 @@ public class SafetyInstructionServiceTest {
                 .thenReturn(false);
         when(instructionRepository.save(instruction))
                 .thenReturn(instruction);
-        var outboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_CREATED), eq(instruction), any()))
-                .thenReturn(outboxRecord);
 
         var saved = instructionService.save(instruction);
 
         assertThat(instruction).usingRecursiveComparison()
                 .isEqualTo(saved);
-        verify(outboxService).createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_CREATED), eq(instruction), any());
+        verify(eventPublisher).publishInstructionSavedEvent(instruction);
         verify(instructionRepository).existsByNumber(instruction.getNumber());
         verify(instructionRepository).save(instruction);
-        verify(outboxService).save(outboxRecord);
     }
 
     @Test
@@ -72,7 +62,7 @@ public class SafetyInstructionServiceTest {
 
         verify(instructionRepository).existsByNumber(instruction.getNumber());
         verify(instructionRepository, never()).save(any());
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -98,7 +88,6 @@ public class SafetyInstructionServiceTest {
         assertThatThrownBy(() -> instructionService.findById(id))
                 .isInstanceOf(EntityNotFoundException.class);
         verify(instructionRepository).findById(id);
-        verifyNoInteractions(outboxService);
     }
 
     @Test
@@ -138,9 +127,6 @@ public class SafetyInstructionServiceTest {
                 .thenReturn(Optional.of(instruction));
         when(instructionRepository.existsByNumber(updateRequest.number()))
                 .thenReturn(false);
-        var outboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_UPDATED), eq(instruction), any()))
-                .thenReturn(outboxRecord);
 
         var updated = instructionService.update(id, updateRequest);
 
@@ -148,7 +134,7 @@ public class SafetyInstructionServiceTest {
         assertThat(updated.getDescription()).isEqualTo(updateRequest.description());
         verify(instructionRepository).findById(id);
         verify(instructionRepository).existsByNumber(updateRequest.number());
-        verify(outboxService).save(outboxRecord);
+        verify(eventPublisher).publishInstructionUpdatedEvent(updated);
     }
 
     @Test
@@ -163,7 +149,7 @@ public class SafetyInstructionServiceTest {
 
         verify(instructionRepository).findById(id);
         verify(instructionRepository, never()).existsByNumber(updateRequest.number());
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -177,7 +163,7 @@ public class SafetyInstructionServiceTest {
                 .isInstanceOf(EntityNotFoundException.class);
         verify(instructionRepository).findById(id);
         verify(instructionRepository, never()).existsByNumber(updateRequest.number());
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -186,15 +172,11 @@ public class SafetyInstructionServiceTest {
         var instruction = createTestInstruction();
         when(instructionRepository.findById(id))
                 .thenReturn(Optional.of(instruction));
-        var outboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_DELETED), eq(instruction), any()))
-                .thenReturn(outboxRecord);
 
         instructionService.deleteById(id);
 
-        verify(outboxService).createOutboxRecord(eq(EventType.SAFETY_INSTRUCTION_DELETED), eq(instruction), any());
+        verify(eventPublisher).publishInstructionDeletedEvent(instruction);
         verify(instructionRepository).findById(id);
-        verify(outboxService).save(outboxRecord);
     }
 
     @Test
@@ -207,7 +189,7 @@ public class SafetyInstructionServiceTest {
                 .isInstanceOf(EntityNotFoundException.class);
         verify(instructionRepository).findById(id);
         verify(instructionRepository, never()).deleteById(id);
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     private SafetyInstruction createTestInstruction() {

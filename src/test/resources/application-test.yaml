@@ -1,0 +1,23 @@
+logging:
+  level:
+    root: INFO
+    by.niruin.library.client.FileClient: INFO
+    feign: INFO
+    feign.codec: INFO
+    com.github.tomakehurst.wiremock: INFO
+    org.apache.http: INFO
+    wiremock: INFO
+  kafka:
+    producer:
+      properties:
+        batch:
+          size: 0
+        linger:
+          ms: 0
+file-service:
+  url: http://localhost:9999
+
+scheduler:
+  outbox:
+    batch-size: 10
+    millis-delay: 5000

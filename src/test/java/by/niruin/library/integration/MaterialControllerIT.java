@@ -1,36 +1,35 @@
 package by.niruin.library.integration;
 
+import by.niruin.library.config.PostgresConfig;
+import by.niruin.library.config.RedisConfig;
 import by.niruin.library.domain.Material;
 import by.niruin.library.repository.MaterialRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.MaterialService;
-import by.niruin.library.kafka.KafkaProducer;
 import org.hamcrest.Matchers;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@Transactional
+@Import({PostgresConfig.class, RedisConfig.class})
 public class MaterialControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
     private MaterialService materialService;
     @Autowired
-    private TransactionOutboxRepository outboxRepository;
-    @Autowired
     private MaterialRepository materialRepository;
+    @Autowired
+    private TransactionOutboxRepository outboxRepository;
 
     private static final String VALID_LITOL_JSON = """
             {
@@ -58,6 +57,12 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                 "supplierCode": "245"
             }
             """;
+
+    @BeforeEach
+    void cleanDatabase() {
+        materialRepository.deleteAll();
+        outboxRepository.deleteAll();
+    }
 
     @Test
     void createMaterial_shouldReturnSavedMaterial() throws Exception {
@@ -92,6 +97,8 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -157,6 +164,22 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    void deleteById_shouldDeleteMaterialAndReturnNoContent() throws Exception {
+        var material = materialService.save(createLitolMaterial());
+        var materialId = material.getId();
+        outboxRepository.deleteAll();
+        var requestBuilder = delete("/api/v1/library-service/materials/{id}", materialId);
+
+        mockMvc.perform(requestBuilder)
+                .andExpectAll(
+                        status().isNoContent(),
+                        content().string(""));
+
+        assertThat(materialRepository.findById(materialId)).isEmpty();
+        assertThat(outboxRepository.findAll()).hasSize(1);
+    }
+
+    @Test
     void deleteById_shouldReturnNotFound_whenMaterialDoesNotExist() throws Exception {
         var requestBuilder = delete("/api/v1/library-service/materials/{id}", 9999L);
 
@@ -171,12 +194,15 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                                     "code": 404
                                 }
                                 """));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
     void update_shouldUpdateAndReturnUpdatedMaterial() throws Exception {
         var material = createLitolMaterial();
         var id = materialService.save(material).getId();
+        outboxRepository.deleteAll();
 
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -191,6 +217,8 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                         jsonPath("$.supplierCode").value("222"),
                         jsonPath("$.createdDate").exists(),
                         jsonPath("$.updatedDate").exists());
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
@@ -204,6 +232,8 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -217,6 +247,8 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(404));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test

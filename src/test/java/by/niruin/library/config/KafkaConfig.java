@@ -1,7 +1,6 @@
 package by.niruin.library.config;
 
 import by.niruin.library.model.event.EventType;
-import com.redis.testcontainers.RedisContainer;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -9,18 +8,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.config.TopicBuilder;
 import org.testcontainers.kafka.KafkaContainer;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration
 @Profile("test")
-public class TestConfig {
-    @Bean
-    @ServiceConnection
-    public PostgreSQLContainer postgreSQLContainer() {
-        return new PostgreSQLContainer(DockerImageName.parse("postgres:17-alpine"));
-    }
-
+public class KafkaConfig {
     @Bean
     @ServiceConnection
     public KafkaContainer kafkaContainer() {
@@ -28,14 +20,8 @@ public class TestConfig {
     }
 
     @Bean
-    @ServiceConnection
-    public RedisContainer redisContainer() {
-        return new RedisContainer(DockerImageName.parse("redis:8.6-alpine"));
-    }
-
-    @Bean
     public NewTopic materialTopic() {
-        return TopicBuilder.name(EventType.MATERIAL_CREATED.getTopicName())
+        return TopicBuilder.name(EventType.MATERIAL_SAVED.getTopicName())
                 .partitions(1)
                 .replicas(1)
                 .build();

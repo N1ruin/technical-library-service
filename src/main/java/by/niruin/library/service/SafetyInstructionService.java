@@ -1,10 +1,9 @@
 package by.niruin.library.service;
 
-import by.niruin.library.model.event.EventType;
 import by.niruin.library.domain.SafetyInstruction;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
-import by.niruin.library.mapper.SafetyInstructionMapper;
+import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.instruction.UpdateSafetyInstructionRequest;
 import by.niruin.library.repository.SafetyInstructionRepository;
 import jakarta.validation.Valid;
@@ -19,15 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SafetyInstructionService {
     private final SafetyInstructionRepository instructionRepository;
-    private final SafetyInstructionMapper instructionMapper;
-    private final TransactionOutboxService transactionOutboxService;
+    private final EventPublisher eventPublisher;
 
-    public SafetyInstructionService(SafetyInstructionRepository instructionRepository,
-                                    SafetyInstructionMapper instructionMapper,
-                                    TransactionOutboxService transactionOutboxService) {
+    public SafetyInstructionService(SafetyInstructionRepository instructionRepository, EventPublisher eventPublisher) {
         this.instructionRepository = instructionRepository;
-        this.instructionMapper = instructionMapper;
-        this.transactionOutboxService = transactionOutboxService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -39,11 +34,7 @@ public class SafetyInstructionService {
 
         var savedInstruction = instructionRepository.save(instruction);
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED,
-                savedInstruction,
-                instructionMapper::toCreatedEvent);
-
-        transactionOutboxService.save(outboxRecord);
+        eventPublisher.publishInstructionSavedEvent(savedInstruction);
 
         return savedInstruction;
     }
@@ -73,10 +64,7 @@ public class SafetyInstructionService {
 
         updateFields(instruction, request);
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_UPDATED,
-                instruction,
-                instructionMapper::toUpdatedEvent);
-        transactionOutboxService.save(outboxRecord);
+        eventPublisher.publishInstructionUpdatedEvent(instruction);
 
         return instruction;
     }
@@ -89,10 +77,7 @@ public class SafetyInstructionService {
 
         instructionRepository.delete(instruction);
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_DELETED,
-                instruction,
-                instructionMapper::toDeletedEvent);
-        transactionOutboxService.save(outboxRecord);
+        eventPublisher.publishInstructionDeletedEvent(instruction);
     }
 
     private void updateFields(SafetyInstruction oldInstruction, UpdateSafetyInstructionRequest request) {

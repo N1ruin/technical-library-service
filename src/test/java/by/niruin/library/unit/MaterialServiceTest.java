@@ -1,15 +1,12 @@
 package by.niruin.library.unit;
 
-import by.niruin.library.model.event.EventType;
 import by.niruin.library.domain.Material;
-import by.niruin.library.domain.TransactionOutboxRecord;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
-import by.niruin.library.mapper.MaterialMapper;
+import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.material.UpdateMaterialRequest;
 import by.niruin.library.repository.MaterialRepository;
 import by.niruin.library.service.MaterialService;
-import by.niruin.library.service.TransactionOutboxService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,9 +30,7 @@ class MaterialServiceTest {
     @Mock
     private MaterialRepository materialRepository;
     @Mock
-    private TransactionOutboxService outboxService;
-    @Mock
-    private MaterialMapper materialMapper;
+    private EventPublisher eventPublisher;
     @InjectMocks
     private MaterialService materialService;
 
@@ -46,18 +41,14 @@ class MaterialServiceTest {
                 .thenReturn(false);
         when(materialRepository.save(material))
                 .thenReturn(material);
-        var outboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.MATERIAL_CREATED), eq(material), any()))
-                .thenReturn(outboxRecord);
 
         var saved = materialService.save(material);
 
         assertThat(material).usingRecursiveComparison()
                 .isEqualTo(saved);
-        verify(outboxService).createOutboxRecord(eq(EventType.MATERIAL_CREATED), eq(material), any());
+        verify(eventPublisher).publishMaterialSavedEvent(material);
         verify(materialRepository).existsByNameAndStandard(material.getName(), material.getStandard());
         verify(materialRepository).save(material);
-        verify(outboxService).save(outboxRecord);
     }
 
     @Test
@@ -71,7 +62,7 @@ class MaterialServiceTest {
 
         verify(materialRepository).existsByNameAndStandard(material.getName(), material.getStandard());
         verify(materialRepository, never()).save(any());
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -136,9 +127,6 @@ class MaterialServiceTest {
                 .thenReturn(Optional.of(material));
         when(materialRepository.existsByNameAndStandard(updateRequest.name(), updateRequest.standard()))
                 .thenReturn(false);
-        var outboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.MATERIAL_UPDATED), eq(material), any()))
-                .thenReturn(outboxRecord);
 
         var updated = materialService.update(id, updateRequest);
 
@@ -148,7 +136,7 @@ class MaterialServiceTest {
         assertThat(updated.getStandard()).isEqualTo(updateRequest.standard());
         verify(materialRepository).findById(id);
         verify(materialRepository).existsByNameAndStandard(updateRequest.name(), updateRequest.standard());
-        verify(outboxService).save(outboxRecord);
+        verify(eventPublisher).publishMaterialUpdatedEvent(updated);
     }
 
     @Test
@@ -163,7 +151,7 @@ class MaterialServiceTest {
 
         verify(materialRepository).findById(id);
         verify(materialRepository, never()).existsByNameAndStandard(updateRequest.name(), updateRequest.standard());
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -177,7 +165,7 @@ class MaterialServiceTest {
                 .isInstanceOf(EntityNotFoundException.class);
         verify(materialRepository).findById(id);
         verify(materialRepository, never()).existsByNameAndStandard(updateRequest.name(), updateRequest.standard());
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -186,15 +174,11 @@ class MaterialServiceTest {
         var material = createTestMaterial();
         when(materialRepository.findById(id))
                 .thenReturn(Optional.of(material));
-        var outboxRecord = mock(TransactionOutboxRecord.class);
-        when(outboxService.createOutboxRecord(eq(EventType.MATERIAL_DELETED), eq(material), any()))
-                .thenReturn(outboxRecord);
 
         materialService.deleteById(id);
 
-        verify(outboxService).createOutboxRecord(eq(EventType.MATERIAL_DELETED), eq(material), any());
+        verify(eventPublisher).publishMaterialDeletedEvent(material);
         verify(materialRepository).findById(id);
-        verify(outboxService).save(outboxRecord);
     }
 
     @Test
@@ -207,7 +191,7 @@ class MaterialServiceTest {
                 .isInstanceOf(EntityNotFoundException.class);
         verify(materialRepository).findById(id);
         verify(materialRepository, never()).deleteById(id);
-        verifyNoInteractions(outboxService);
+        verifyNoInteractions(eventPublisher);
     }
 
     private Material createTestMaterial() {

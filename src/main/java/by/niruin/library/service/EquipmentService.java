@@ -5,11 +5,8 @@ import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
-import by.niruin.library.mapper.EquipmentMapper;
+import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.equipment.UpdateEquipmentRequest;
-import by.niruin.library.model.event.EventType;
-import by.niruin.library.model.event.file.EquipmentOperationSuccessfulEvent;
-import by.niruin.library.model.event.file.FileDeletedEvent;
 import by.niruin.library.repository.EquipmentRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -25,18 +22,15 @@ import org.springframework.web.multipart.MultipartFile;
 public class EquipmentService {
     private final FileClient fileClient;
     private final EquipmentRepository equipmentRepository;
-    private final TransactionOutboxService outboxService;
-    private final EquipmentMapper equipmentMapper;
     private final TransactionTemplate transactionTemplate;
+    private final EventPublisher eventPublisher;
 
     public EquipmentService(FileClient fileClient, EquipmentRepository equipmentRepository,
-                            TransactionOutboxService outboxService, EquipmentMapper equipmentMapper,
-                            TransactionTemplate transactionTemplate) {
+                            TransactionTemplate transactionTemplate, EventPublisher eventPublisher) {
         this.fileClient = fileClient;
         this.equipmentRepository = equipmentRepository;
-        this.outboxService = outboxService;
-        this.equipmentMapper = equipmentMapper;
         this.transactionTemplate = transactionTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @CachePut(value = "equipment", key = "#result.id")
@@ -49,10 +43,10 @@ public class EquipmentService {
             equipment.setImageName(fileName);
             var saved = equipmentRepository.save(equipment);
 
-            publishEquipmentCreatedEvent(saved);
+            eventPublisher.publishEquipmentSavedEvent(saved);
 
             if (fileName != null) {
-                publishMoveFileOutboxRecord(fileName);
+                eventPublisher.publishFileMovedToPermanentStorageEvent(fileName);
             }
 
             return saved;
@@ -81,13 +75,13 @@ public class EquipmentService {
             var oldFileName = existing.getImageName();
             updateFields(existing, request, newFileName);
 
-            publishEquipmentUpdatedEvent(existing);
+            eventPublisher.publishEquipmentUpdatedEvent(existing);
 
             if (newFileName != null) {
-                publishMoveFileOutboxRecord(newFileName);
+                eventPublisher.publishFileMovedToPermanentStorageEvent(newFileName);
 
                 if (oldFileName != null) {
-                    publishFileDeletionEvent(oldFileName);
+                    eventPublisher.publishFileDeletedEvent(oldFileName);
                 }
             }
 
@@ -102,9 +96,9 @@ public class EquipmentService {
 
         equipmentRepository.delete(equipment);
 
-        publishEquipmentDeletedEvent(equipment);
+        eventPublisher.publishEquipmentDeletedEvent(equipment);
 
-        publishFileDeletionEvent(equipment.getImageName());
+        eventPublisher.publishFileDeletedEvent(equipment.getImageName());
     }
 
     private String uploadFile(MultipartFile file) {
@@ -140,47 +134,6 @@ public class EquipmentService {
 
         if (newFileName != null) {
             equipment.setImageName(newFileName);
-        }
-    }
-
-    private void publishEquipmentCreatedEvent(Equipment equipment) {
-        var equipmentCreatedEvent = outboxService.createOutboxRecord(
-                EventType.EQUIPMENT_CREATED,
-                equipment,
-                equipmentMapper::toCreatedEvent);
-        outboxService.save(equipmentCreatedEvent);
-    }
-
-    private void publishEquipmentDeletedEvent(Equipment equipment) {
-        var equipmentDeletionEvent = outboxService.createOutboxRecord(EventType.EQUIPMENT_DELETED,
-                equipment,
-                equipmentMapper::toDeletedEvent);
-        outboxService.save(equipmentDeletionEvent);
-    }
-
-    private void publishEquipmentUpdatedEvent(Equipment equipment) {
-        var notificationOutboxRecord = outboxService.createOutboxRecord(
-                EventType.EQUIPMENT_UPDATED,
-                equipment,
-                equipmentMapper::toUpdatedEvent);
-        outboxService.save(notificationOutboxRecord);
-    }
-
-    private void publishMoveFileOutboxRecord(String fileName) {
-        var moveFileOutboxRecord = outboxService.createOutboxRecord(
-                EventType.FILE_MOVE_TO_PERMANENT_STORAGE,
-                fileName,
-                EquipmentOperationSuccessfulEvent::new);
-        outboxService.save(moveFileOutboxRecord);
-    }
-
-    private void publishFileDeletionEvent(String oldFileName) {
-        if (oldFileName != null) {
-            var deleteFileOutboxRecord = outboxService.createOutboxRecord(
-                    EventType.FILE_MARKED_FOR_DELETION,
-                    oldFileName,
-                    FileDeletedEvent::new);
-            outboxService.save(deleteFileOutboxRecord);
         }
     }
 }

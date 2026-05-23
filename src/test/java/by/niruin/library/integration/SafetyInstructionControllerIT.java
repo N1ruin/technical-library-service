@@ -1,31 +1,35 @@
 package by.niruin.library.integration;
 
+import by.niruin.library.config.PostgresConfig;
+import by.niruin.library.config.RedisConfig;
 import by.niruin.library.domain.SafetyInstruction;
+import by.niruin.library.repository.SafetyInstructionRepository;
+import by.niruin.library.repository.TransactionOutboxRepository;
 import by.niruin.library.service.SafetyInstructionService;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-@Transactional
+
+@Import({PostgresConfig.class, RedisConfig.class})
 public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
     private SafetyInstructionService safetyInstructionService;
     @Autowired
-    private EntityManager em;
+    private SafetyInstructionRepository instructionRepository;
+    @Autowired
+    private TransactionOutboxRepository outboxRepository;
 
     private static final String VALID_INSTRUCTION_JSON = """
             {
@@ -42,8 +46,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        em.createNativeQuery("TRUNCATE TABLE library.safety_instruction RESTART IDENTITY CASCADE")
-                .executeUpdate();
+        instructionRepository.deleteAll();
+        outboxRepository.deleteAll();
     }
 
     @Test
@@ -57,10 +61,11 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         status().isCreated(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         content().json(VALID_INSTRUCTION_JSON),
-                        jsonPath("$.id").value(1),
+                        jsonPath("$.id").exists(),
                         jsonPath("$.number").value("106п"),
-                        jsonPath("$.description").value("Тестовое описание")
-                );
+                        jsonPath("$.description").value("Тестовое описание"));
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
@@ -72,6 +77,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         instruction.setNumber("106п");
         instruction.setDescription("Тестовое описание");
         safetyInstructionService.save(instruction);
+        outboxRepository.deleteAll();
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -79,8 +85,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(409)
-                );
+                        jsonPath("$.code").value(409));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -95,8 +102,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
+                        jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -109,17 +117,16 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                 .andExpectAll(
                         status().isOk(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        jsonPath("$.id").value(1L),
+                        jsonPath("$.id").value(instructionId),
                         jsonPath("$.number").exists(),
                         jsonPath("$.description").value("Тестовое описание"),
                         jsonPath("$.createdDate").exists(),
-                        jsonPath("$.updatedDate").exists()
-                );
+                        jsonPath("$.updatedDate").exists());
     }
 
     @Test
     void findById_throwsEntityNotFound() throws Exception {
-        var requestBuilder = get("/api/v1/library-service/safety-instructions/{id}", 1L);
+        var requestBuilder = get("/api/v1/library-service/safety-instructions/{id}", 999L);
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -127,8 +134,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(404)
-                );
+                        jsonPath("$.code").value(404));
     }
 
     @Test
@@ -156,21 +162,22 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         jsonPath("$.content[2].number").exists(),
                         jsonPath("$.content[2].description").exists(),
                         jsonPath("$.content[2].createdDate").exists(),
-                        jsonPath("$.content[2].updatedDate").exists()
-                );
+                        jsonPath("$.content[2].updatedDate").exists());
     }
 
     @Test
     void deleteById_success() throws Exception {
         var instructionId = safetyInstructionService.save(createInstruction()).getId();
         var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", instructionId);
+        outboxRepository.deleteAll();
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
-                        status().isNoContent()
-                );
+                        status().isNoContent());
 
-        assertEquals(0, safetyInstructionService.findAll(PageRequest.of(1, 10)).get().count());
+        assertThat(outboxRepository.findAll()).hasSize(1);
+        assertThat(safetyInstructionService.findAll(PageRequest.of(1, 10)).get().count())
+                .isEqualTo(0);
     }
 
     @Test
@@ -183,8 +190,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(404)
-                );
+                        jsonPath("$.code").value(404));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -192,8 +200,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         var instruction = safetyInstructionService.save(createInstruction());
         instruction.setNumber("111");
         instruction.setDescription("Тестовое описание 123");
-
-        var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 1L)
+        outboxRepository.deleteAll();
+        var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", instruction.getId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -209,13 +217,14 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                                 """),
                         jsonPath("$.id").value(instruction.getId()),
                         jsonPath("$.createdDate").exists(),
-                        jsonPath("$.updatedDate").exists()
-                );
+                        jsonPath("$.updatedDate").exists());
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
     void update_throwsEntityNotFound() throws Exception {
-        var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 1L)
+        var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 999L)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -223,14 +232,11 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                 .andExpectAll(
                         status().isNotFound(),
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        content().json("""
-                                {
-                                    "error": "Entity not found",
-                                    "message": "Entity with id 1 not found",
-                                    "code": 404
-                                }
-                                """)
-                );
+                        jsonPath("$.error").exists(),
+                        jsonPath("$.message").exists(),
+                        jsonPath("$.code").value(404));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -239,6 +245,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 1L)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_INSTRUCTION_JSON);
+        outboxRepository.deleteAll();
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -246,8 +253,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(400)
-                );
+                        jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -261,6 +269,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         toUpdate.setNumber("777");
         toUpdate.setDescription("Я вторая");
         var saved = safetyInstructionService.save(toUpdate);
+        outboxRepository.deleteAll();
 
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", saved.getId())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -277,8 +286,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
                         content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
-                        jsonPath("$.code").value(409)
-                );
+                        jsonPath("$.code").value(409));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     private SafetyInstruction createInstruction() {

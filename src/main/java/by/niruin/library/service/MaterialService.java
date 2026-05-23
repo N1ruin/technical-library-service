@@ -1,7 +1,6 @@
 package by.niruin.library.service;
 
-import by.niruin.library.model.event.EventType;
-import by.niruin.library.mapper.MaterialMapper;
+import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.domain.Material;
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
@@ -18,14 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MaterialService {
     private final MaterialRepository materialRepository;
-    private final MaterialMapper materialMapper;
-    private final TransactionOutboxService transactionOutboxService;
+    private final EventPublisher eventPublisher;
 
-    public MaterialService(MaterialRepository materialRepository, MaterialMapper materialMapper,
-                           TransactionOutboxService transactionOutboxService) {
+    public MaterialService(MaterialRepository materialRepository, EventPublisher eventPublisher) {
         this.materialRepository = materialRepository;
-        this.materialMapper = materialMapper;
-        this.transactionOutboxService = transactionOutboxService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -40,11 +36,7 @@ public class MaterialService {
 
         var savedMaterial = materialRepository.save(material);
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.MATERIAL_CREATED,
-                savedMaterial,
-                materialMapper::toSavedEvent);
-
-        transactionOutboxService.save(outboxRecord);
+        eventPublisher.publishMaterialSavedEvent(savedMaterial);
 
         return savedMaterial;
     }
@@ -74,11 +66,7 @@ public class MaterialService {
 
         updateFields(material, request);
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.MATERIAL_UPDATED,
-                material,
-                materialMapper::toUpdatedEvent);
-
-        transactionOutboxService.save(outboxRecord);
+        eventPublisher.publishMaterialUpdatedEvent(material);
 
         return material;
     }
@@ -89,11 +77,8 @@ public class MaterialService {
         var deletedMaterial = materialRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.MATERIAL_DELETED,
-                deletedMaterial,
-                materialMapper::toDeleteEvent);
+        eventPublisher.publishMaterialDeletedEvent(deletedMaterial);
 
-        transactionOutboxService.save(outboxRecord);
         materialRepository.deleteById(id);
     }
 

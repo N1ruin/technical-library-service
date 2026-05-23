@@ -1,8 +1,9 @@
 package by.niruin.library.integration;
 
+import by.niruin.library.config.PostgresConfig;
+import by.niruin.library.config.RedisConfig;
 import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
-import by.niruin.library.kafka.KafkaProducer;
 import by.niruin.library.model.error.ErrorResponse;
 import by.niruin.library.model.file.UploadFileResponse;
 import by.niruin.library.repository.EquipmentRepository;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,20 +25,22 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.ObjectMapper;
 import wiremock.org.eclipse.jetty.http.HttpHeader;
 
-import java.util.*;
+import java.util.UUID;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
-import static org.hamcrest.Matchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WireMockTest
+@Import({PostgresConfig.class, RedisConfig.class})
 public class EquipmentControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
@@ -48,10 +52,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     private TransactionOutboxRepository outboxRepository;
     @Autowired
     private ObjectMapper objectMapper;
-    @Autowired
-    private KafkaContainer kafkaContainer;
-    @Autowired
-    private KafkaProducer producer;
+
     @RegisterExtension
     static WireMockExtension fileServiceWireMock = WireMockExtension.newInstance()
             .options(WireMockConfiguration.wireMockConfig().dynamicPort())
@@ -96,6 +97,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.index").value("2125PTi"),
                         jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()),
                         jsonPath("$.imageName").value(generatedFileName));
+
+        assertThat(outboxRepository.findAll()).hasSize(2);
     }
 
     @Test
@@ -115,6 +118,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.description").value(equipment.getDescription()),
                         jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()),
                         jsonPath("$.imageName").doesNotExist());
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
@@ -142,6 +147,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -159,6 +166,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -237,6 +246,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var generatedFileName = UUID.randomUUID() + ".png";
         equipment.setImageName(generatedFileName);
         var saved = equipmentRepository.save(equipment);
+        outboxRepository.deleteAll();
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", equipment.getId())
                         .param("name", "New name")
@@ -249,11 +259,16 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.name").value("New name"),
                         jsonPath("$.description").value("New Description"),
                         jsonPath("$.type").value(EquipmentType.ASSEMBLY.name()));
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 
     @Test
     void update_replaceFile_success() throws Exception {
-        var equipment = equipmentRepository.save(getEquipment());
+        var existingFileName = UUID.randomUUID() + ".png";
+        var equipment = getEquipment();
+        equipment.setImageName(existingFileName);
+        var saved = equipmentRepository.save(equipment);
         var generatedImageName = UUID.randomUUID() + ".png";
         var newFile = new MockMultipartFile(
                 "file",
@@ -262,6 +277,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                 "new-content-test".getBytes());
         var uploadFileResponse = new UploadFileResponse(generatedImageName);
         var responseJson = objectMapper.writeValueAsString(uploadFileResponse);
+        outboxRepository.deleteAll();
 
         fileServiceWireMock.stubFor(
                 post(urlPathEqualTo("/api/v1/file-service/files/images"))
@@ -271,19 +287,21 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                                 .withHeader(HttpHeader.CONTENT_TYPE.toString(), MediaType.APPLICATION_JSON_VALUE)
                                 .withBody(responseJson)));
 
-        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", equipment.getId())
-                        .param("name", equipment.getName())
-                        .param("index", equipment.getIndex())
-                        .param("description", equipment.getDescription())
-                        .param("type", equipment.getType().name())
+        mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", saved.getId())
+                        .param("name", saved.getName())
+                        .param("index", saved.getIndex())
+                        .param("description", saved.getDescription())
+                        .param("type", saved.getType().name())
                         .file(newFile))
                 .andExpectAll(
                         status().isOk(),
                         jsonPath("$.imageName").value(generatedImageName),
-                        jsonPath("$.index").value(equipment.getIndex()),
-                        jsonPath("$.name").value(equipment.getName()),
-                        jsonPath("$.description").value(equipment.getDescription()),
-                        jsonPath("$.type").value(equipment.getType().name()));
+                        jsonPath("$.index").value(saved.getIndex()),
+                        jsonPath("$.name").value(saved.getName()),
+                        jsonPath("$.description").value(saved.getDescription()),
+                        jsonPath("$.type").value(saved.getType().name()));
+
+        assertThat(outboxRepository.findAll()).hasSize(3);
     }
 
     @Test
@@ -298,10 +316,12 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(404));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
-    void update_shouldReturnErrorResponse_dueToValidationException() throws Exception {
+    void update_shouldThrowValidationEx() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 999L)
                         .param("name", "New name321&%$@#()*$()#@")
                         .param("index", "0432fdsZop^%#$@)(")
@@ -312,6 +332,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(400));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
@@ -321,17 +343,18 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var generatedFileName = UUID.randomUUID() + ".png";
         var uploadResponse = new UploadFileResponse(generatedFileName);
         var responseBody = objectMapper.writeValueAsString(uploadResponse);
-
         fileServiceWireMock.stubFor(post("/api/v1/file-service/files/images")
                 .willReturn(aResponse()
                         .withStatus(HttpStatus.CREATED.value())
                         .withHeader("Content-Type", "application/json")
                         .withBody(responseBody)));
-
         var saved = equipmentService.save(equipment, multipartFile);
+        outboxRepository.deleteAll();
 
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId()))
                 .andExpect(status().isNoContent());
+
+        assertThat(outboxRepository.findAll()).hasSize(2);
     }
 
     @Test
@@ -345,6 +368,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         jsonPath("$.error").exists(),
                         jsonPath("$.message").exists(),
                         jsonPath("$.code").value(404));
+
+        assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     private MockMultipartFile getValidMultipartFile() {
