@@ -1,12 +1,6 @@
 logging:
   level:
     root: INFO
-    by.niruin.library.client.FileClient: INFO
-    feign: INFO
-    feign.codec: INFO
-    com.github.tomakehurst.wiremock: INFO
-    org.apache.http: INFO
-    wiremock: INFO
   kafka:
     producer:
       properties:

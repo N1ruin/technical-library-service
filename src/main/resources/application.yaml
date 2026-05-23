@@ -28,13 +28,7 @@ spring:
       cache-null-values: false
 logging:
   level:
-    root: ERROR
-    by.niruin.library.client.FileClient: ERROR
-    feign: ERROR
-    feign.codec: ERROR
-    com.github.tomakehurst.wiremock: ERROR
-    org.apache.http: ERROR
-    wiremock: ERROR
+    root: INFO
 
 server:
   port: 8082
