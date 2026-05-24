@@ -11,7 +11,7 @@ public enum EventType {
     MATERIAL_UPDATED(MATERIAL_SAVED.getTopicName()),
     MATERIAL_DELETED(MATERIAL_SAVED.getTopicName()),
     FILE_MOVE_TO_PERMANENT_STORAGE("file-topic"),
-    FILE_MARKED_FOR_DELETION(FILE_MOVE_TO_PERMANENT_STORAGE.getTopicName());
+    FILE_DELETED_EVENT(FILE_MOVE_TO_PERMANENT_STORAGE.getTopicName());
 
     private final String topicName;
 

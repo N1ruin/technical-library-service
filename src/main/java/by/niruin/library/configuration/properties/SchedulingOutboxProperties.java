@@ -4,8 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "scheduler.outbox")
 public class SchedulingOutboxProperties {
-    private Integer batchSize = 10;
-    private Integer millisDelay = 5000;
+    private Integer batchSize;
+    private Integer millisDelay;
 
     public Integer getBatchSize() {
         return batchSize;

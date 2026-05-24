@@ -29,7 +29,7 @@ public class KafkaConfig {
 
     @Bean
     public NewTopic fileDeletionTopic() {
-        return TopicBuilder.name(EventType.FILE_MARKED_FOR_DELETION.getTopicName())
+        return TopicBuilder.name(EventType.FILE_DELETED_EVENT.getTopicName())
                 .partitions(1)
                 .replicas(1)
                 .build();

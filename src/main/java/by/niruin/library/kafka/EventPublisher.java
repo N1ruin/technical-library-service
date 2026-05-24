@@ -7,7 +7,7 @@ import by.niruin.library.mapper.EquipmentMapper;
 import by.niruin.library.mapper.MaterialMapper;
 import by.niruin.library.mapper.SafetyInstructionMapper;
 import by.niruin.library.model.event.EventType;
-import by.niruin.library.model.event.file.EquipmentOperationSuccessfulEvent;
+import by.niruin.library.model.event.file.MoveFileToPermanentStorageEvent;
 import by.niruin.library.model.event.file.FileDeletedEvent;
 import by.niruin.library.service.TransactionOutboxService;
 import org.springframework.stereotype.Component;
@@ -54,16 +54,18 @@ public class EventPublisher {
         var moveFileOutboxRecord = outboxService.createOutboxRecord(
                 EventType.FILE_MOVE_TO_PERMANENT_STORAGE,
                 fileName,
-                EquipmentOperationSuccessfulEvent::new);
+                (name) ->
+                        new MoveFileToPermanentStorageEvent(name, EventType.FILE_MOVE_TO_PERMANENT_STORAGE.name()));
         outboxService.save(moveFileOutboxRecord);
     }
 
     public void publishFileDeletedEvent(String oldFileName) {
         if (oldFileName != null) {
             var deleteFileOutboxRecord = outboxService.createOutboxRecord(
-                    EventType.FILE_MARKED_FOR_DELETION,
+                    EventType.FILE_DELETED_EVENT,
                     oldFileName,
-                    FileDeletedEvent::new);
+                    (name) ->
+                            new FileDeletedEvent(name, EventType.FILE_DELETED_EVENT.name()));
             outboxService.save(deleteFileOutboxRecord);
         }
     }

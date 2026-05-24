@@ -1,17 +1,6 @@
 logging:
   level:
-    root: INFO
-  kafka:
-    producer:
-      properties:
-        batch:
-          size: 0
-        linger:
-          ms: 0
+    root: DEBUG
+
 file-service:
   url: http://localhost:9999
-
-scheduler:
-  outbox:
-    batch-size: 10
-    millis-delay: 5000

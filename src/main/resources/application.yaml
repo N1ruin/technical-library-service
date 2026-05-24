@@ -1,31 +1,37 @@
 spring:
   application:
     name: technical-library-service
+
   profiles:
     active: dev
+
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/library_db
     username: root
     password: root
+
   jpa:
     show-sql: false
     properties:
       hibernate:
         default_schema: library
+
   kafka:
     bootstrap-servers: localhost:9092
     producer:
       retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
       properties:
         spring.json.trusted.packages: '*'
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
   cache:
     type: redis
     redis:
       time-to-live: 60m
       cache-null-values: false
+
 logging:
   level:
     root: INFO
