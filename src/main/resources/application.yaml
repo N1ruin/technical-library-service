@@ -96,14 +96,6 @@ resilience4j:
       libraryService:
         baseConfig: default
 
-  timelimiter:
-    configs:
-      default:
-        timeout-duration: 5s
-    instances:
-      libraryService:
-        baseConfig: default
-
   retry:
     configs:
       default:
