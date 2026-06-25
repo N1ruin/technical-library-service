@@ -1,6 +1,5 @@
 package by.niruin.library.integration;
 
-import by.niruin.library.config.PostgresConfig;
 import by.niruin.library.config.SchedulerConfig;
 import by.niruin.library.configuration.properties.SchedulingOutboxProperties;
 import by.niruin.library.domain.SafetyInstruction;
@@ -22,7 +21,7 @@ import java.util.Random;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
-@Import({PostgresConfig.class, SchedulerConfig.class})
+@Import(SchedulerConfig.class)
 public class TransactionOutboxServiceIT extends BaseIntegrationTest {
     @Autowired
     private TransactionOutboxService outboxService;

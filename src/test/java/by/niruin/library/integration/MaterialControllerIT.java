@@ -1,7 +1,5 @@
 package by.niruin.library.integration;
 
-import by.niruin.library.config.PostgresConfig;
-import by.niruin.library.config.RedisConfig;
 import by.niruin.library.domain.Material;
 import by.niruin.library.repository.MaterialRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
@@ -10,17 +8,16 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@Import({PostgresConfig.class, RedisConfig.class})
 public class MaterialControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
@@ -67,6 +64,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     @Test
     void createMaterial_shouldReturnSavedMaterial() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_LITOL_JSON);
 
@@ -87,6 +85,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     @Test
     void createMaterial_shouldThrowsValidationException() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_OIL_JSON);
 
@@ -104,6 +103,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     @Test
     void findById_shouldThrowsEntityNotFound() throws Exception {
         var requestBuilder = get("/api/v1/library-service/materials/{id}", 999L)
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON);
 
         mockMvc.perform(requestBuilder)
@@ -121,6 +121,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
         materialService.save(material);
 
         var requestBuilder = get("/api/v1/library-service/materials/{id}", material.getId())
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON);
 
         mockMvc.perform(requestBuilder)
@@ -140,6 +141,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
         materials.forEach(materialService::save);
 
         var requestBuilder = get("/api/v1/library-service/materials")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON);
 
         mockMvc.perform(requestBuilder)
@@ -168,7 +170,8 @@ public class MaterialControllerIT extends BaseIntegrationTest {
         var material = materialService.save(createLitolMaterial());
         var materialId = material.getId();
         outboxRepository.deleteAll();
-        var requestBuilder = delete("/api/v1/library-service/materials/{id}", materialId);
+        var requestBuilder = delete("/api/v1/library-service/materials/{id}", materialId)
+                .with(jwt());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -181,7 +184,8 @@ public class MaterialControllerIT extends BaseIntegrationTest {
 
     @Test
     void deleteById_shouldReturnNotFound_whenMaterialDoesNotExist() throws Exception {
-        var requestBuilder = delete("/api/v1/library-service/materials/{id}", 9999L);
+        var requestBuilder = delete("/api/v1/library-service/materials/{id}", 9999L)
+                .with(jwt());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -205,6 +209,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
         outboxRepository.deleteAll();
 
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", id)
+                        .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_OIL_JSON))
                 .andExpectAll(
@@ -224,6 +229,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     @Test
     void update_throwsValidationException() throws Exception {
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", 1L)
+                        .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(INVALID_OIL_JSON))
                 .andExpectAll(
@@ -239,6 +245,7 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     @Test
     void update_throwsEntityNotFound_whenMaterialDoesNotExist() throws Exception {
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", 9999L)
+                        .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_OIL_JSON))
                 .andExpectAll(

@@ -4,7 +4,7 @@ server:
 logging:
   level:
     root: INFO
-    by.niruin.library: DEBUG
+    by.niruin.library: INFO
 
 scheduler:
   outbox:
@@ -32,13 +32,6 @@ spring:
       hibernate:
         default_schema: library
         dialect: org.hibernate.dialect.PostgreSQLDialect
-    hibernate:
-      ddl-auto: validate
-
-  liquibase:
-    enabled: true
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    default-schema: library
 
   data:
     redis:
@@ -54,7 +47,6 @@ spring:
   kafka:
     bootstrap-servers: kafka:9092
     producer:
-      retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
       properties:

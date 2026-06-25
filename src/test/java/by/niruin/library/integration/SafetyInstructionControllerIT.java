@@ -1,7 +1,5 @@
 package by.niruin.library.integration;
 
-import by.niruin.library.config.PostgresConfig;
-import by.niruin.library.config.RedisConfig;
 import by.niruin.library.domain.SafetyInstruction;
 import by.niruin.library.repository.SafetyInstructionRepository;
 import by.niruin.library.repository.TransactionOutboxRepository;
@@ -9,7 +7,6 @@ import by.niruin.library.service.SafetyInstructionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,10 +14,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@Import({PostgresConfig.class, RedisConfig.class})
 public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
@@ -53,6 +50,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Test
     void saveInstruction_shouldReturnCreatedInstruction() throws Exception {
         var requestBuilder = post("/api/v1/library-service/safety-instructions")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -71,6 +69,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Test
     void saveInstruction_throwsEntityAlreadyExist() throws Exception {
         var requestBuilder = post("/api/v1/library-service/safety-instructions")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
         var instruction = new SafetyInstruction();
@@ -93,6 +92,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Test
     void saveInstruction_throwsValidationException() throws Exception {
         var requestBuilder = post("/api/v1/library-service/safety-instructions")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_INSTRUCTION_JSON);
 
@@ -111,7 +111,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     void findById_shouldReturnInstruction() throws Exception {
         var instructionId = safetyInstructionService.save(createInstruction()).getId();
 
-        var requestBuilder = get("/api/v1/library-service/safety-instructions/{id}", instructionId);
+        var requestBuilder = get("/api/v1/library-service/safety-instructions/{id}", instructionId)
+                .with(jwt());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -126,7 +127,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
 
     @Test
     void findById_throwsEntityNotFound() throws Exception {
-        var requestBuilder = get("/api/v1/library-service/safety-instructions/{id}", 999L);
+        var requestBuilder = get("/api/v1/library-service/safety-instructions/{id}", 999L)
+                .with(jwt());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -139,7 +141,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
 
     @Test
     void findAll_shouldReturnInstructionListWithSizeThree() throws Exception {
-        var requestBuilder = get("/api/v1/library-service/safety-instructions");
+        var requestBuilder = get("/api/v1/library-service/safety-instructions")
+                .with(jwt());
         safetyInstructionService.save(createInstruction());
         safetyInstructionService.save(createInstruction());
         safetyInstructionService.save(createInstruction());
@@ -168,7 +171,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Test
     void deleteById_success() throws Exception {
         var instructionId = safetyInstructionService.save(createInstruction()).getId();
-        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", instructionId);
+        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", instructionId)
+                .with(jwt());
         outboxRepository.deleteAll();
 
         mockMvc.perform(requestBuilder)
@@ -182,7 +186,8 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
 
     @Test
     void deleteById_shouldReturnNotFound_whenMaterialDoesNotExist() throws Exception {
-        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", 1L);
+        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", 1L)
+                .with(jwt());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -202,6 +207,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         instruction.setDescription("Тестовое описание 123");
         outboxRepository.deleteAll();
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", instruction.getId())
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -225,6 +231,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     @Test
     void update_throwsEntityNotFound() throws Exception {
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 999L)
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -243,6 +250,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     void update_throwsValidationException() throws Exception {
         safetyInstructionService.save(createInstruction());
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 1L)
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_INSTRUCTION_JSON);
         outboxRepository.deleteAll();
@@ -272,6 +280,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         outboxRepository.deleteAll();
 
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", saved.getId())
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {

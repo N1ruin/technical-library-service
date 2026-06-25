@@ -1,7 +1,5 @@
 package by.niruin.library.integration;
 
-import by.niruin.library.config.PostgresConfig;
-import by.niruin.library.config.RedisConfig;
 import by.niruin.library.domain.Equipment;
 import by.niruin.library.domain.EquipmentType;
 import by.niruin.library.model.error.ErrorResponse;
@@ -16,7 +14,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -34,13 +31,13 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WireMockTest
-@Import({PostgresConfig.class, RedisConfig.class})
 public class EquipmentControllerIT extends BaseIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
@@ -85,6 +82,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         .withBody(responseBody)));
 
         mockMvc.perform(multipart(HttpMethod.POST, "/api/v1/library-service/equipments")
+                        .with(jwt())
                         .file(multipartFile)
                         .param("name", "Гайковерт")
                         .param("index", "2125PTi")
@@ -106,6 +104,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var equipment = getEquipment();
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
+                        .with(jwt())
                         .param("name", equipment.getName())
                         .param("index", equipment.getIndex())
                         .param("description", equipment.getDescription())
@@ -137,6 +136,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         .withBody(responseJson)));
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
+                        .with(jwt())
                         .file(multipartFile)
                         .param("name", equipment.getName())
                         .param("index", equipment.getIndex())
@@ -156,6 +156,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var multipartFile = getValidMultipartFile();
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
+                        .with(jwt())
                         .file(multipartFile)
                         .param("name", "fgdasfads3215432fdsafasvasfasdwqrweq$#%^$@@#")
                         .param("index", "||/fdas123")
@@ -177,7 +178,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         equipment.setImageName(generatedFileName);
         var saved = equipmentRepository.save(equipment);
 
-        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", saved.getId()))
+        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", saved.getId())
+                        .with(jwt()))
                 .andExpectAll(
                         status().isOk(),
                         jsonPath("$.id").value(saved.getId()),
@@ -192,7 +194,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
     @Test
     void findById_throwsNotFoundException() throws Exception {
-        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", 999L))
+        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", 999L)
+                        .with(jwt()))
                 .andExpectAll(
                         status().isNotFound(),
                         jsonPath("$.error").exists(),
@@ -204,7 +207,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     void findById_ShouldReturnEquipmentWithoutFile() throws Exception {
         var equipment = equipmentService.save(getEquipment(), null);
 
-        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", equipment.getId()))
+        mockMvc.perform(get("/api/v1/library-service/equipments/{id}", equipment.getId())
+                        .with(jwt()))
                 .andExpectAll(
                         status().isOk(),
                         jsonPath("$.id").value(equipment.getId()),
@@ -225,7 +229,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         equipmentRepository.save(equipmentOne);
         equipmentRepository.save(equipmentTwo);
 
-        mockMvc.perform(get("/api/v1/library-service/equipments"))
+        mockMvc.perform(get("/api/v1/library-service/equipments")
+                        .with(jwt()))
                 .andExpectAll(
                         status().isOk(),
                         jsonPath("$.content.length()").value(2),
@@ -234,7 +239,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
     @Test
     void findAll_shouldReturnEmptyList() throws Exception {
-        mockMvc.perform(get("/api/v1/library-service/equipments"))
+        mockMvc.perform(get("/api/v1/library-service/equipments")
+                        .with(jwt()))
                 .andExpectAll(
                         status().isOk(),
                         jsonPath("$.content.length()").value(0));
@@ -249,6 +255,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         outboxRepository.deleteAll();
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", equipment.getId())
+                        .with(jwt())
                         .param("name", "New name")
                         .param("index", "New Index")
                         .param("description", "New Description")
@@ -288,6 +295,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                                 .withBody(responseJson)));
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", saved.getId())
+                        .with(jwt())
                         .param("name", saved.getName())
                         .param("index", saved.getIndex())
                         .param("description", saved.getDescription())
@@ -307,6 +315,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     @Test
     void update_shouldReturnErrorResponse_dueToNotFoundException() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 1L)
+                        .with(jwt())
                         .param("name", "New name")
                         .param("index", "New Index")
                         .param("description", "New Description")
@@ -323,6 +332,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     @Test
     void update_shouldThrowValidationEx() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 999L)
+                        .with(jwt())
                         .param("name", "New name321&%$@#()*$()#@")
                         .param("index", "0432fdsZop^%#$@)(")
                         .param("description", "{}{][)_}")
@@ -351,7 +361,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var saved = equipmentService.save(equipment, multipartFile);
         outboxRepository.deleteAll();
 
-        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId()))
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId())
+                        .with(jwt()))
                 .andExpect(status().isNoContent());
 
         assertThat(outboxRepository.findAll()).hasSize(2);
@@ -359,7 +370,8 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
 
     @Test
     void delete_shouldReturnErrorResponse_dueToNotFoundException() throws Exception {
-        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", 1L);
+        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", 1L)
+                .with(jwt());
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(

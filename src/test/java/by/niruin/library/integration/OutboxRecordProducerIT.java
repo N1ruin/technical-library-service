@@ -1,7 +1,5 @@
 package by.niruin.library.integration;
 
-import by.niruin.library.config.KafkaConfig;
-import by.niruin.library.config.PostgresConfig;
 import by.niruin.library.config.SchedulerConfig;
 import by.niruin.library.domain.SafetyInstruction;
 import by.niruin.library.domain.TransactionOutboxRecord;
@@ -29,7 +27,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-@Import({PostgresConfig.class, KafkaConfig.class, SchedulerConfig.class})
+@Import(SchedulerConfig.class)
 public class OutboxRecordProducerIT extends BaseIntegrationTest {
     @Autowired
     private TransactionOutboxRepository outboxRepository;

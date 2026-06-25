@@ -88,9 +88,9 @@ public class GlobalExceptionHandler {
         log.error("Exception: {}", exception.getMessage(), exception);
 
         var errorResponse = new ErrorResponse("File upload error", exception.getMessage(),
-                HttpStatus.INTERNAL_SERVER_ERROR.value());
+                exception.getHttpStatus());
 
-        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+        return ResponseEntity.status(exception.getHttpStatus()).body(errorResponse);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
