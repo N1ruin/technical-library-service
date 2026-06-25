@@ -1,13 +1,28 @@
+server:
+  port: 8081
+
+logging:
+  level:
+    root: INFO
+    by.niruin.library: DEBUG
+
+scheduler:
+  outbox:
+    batch-size: 10
+    millis-delay: 5000
+
 spring:
   application:
     name: technical-library-service
 
-  profiles:
-    active: dev
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/library_db
+    url: jdbc:postgresql://postgres-library:5432/library_db
     username: root
     password: root
 
@@ -16,15 +31,19 @@ spring:
     properties:
       hibernate:
         default_schema: library
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
 
-  kafka:
-    bootstrap-servers: localhost:9092
-    producer:
-      retries: 3
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
-      properties:
-        spring.json.trusted.packages: '*'
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: library
+
+  data:
+    redis:
+      host: redis
+      port: 6379
 
   cache:
     type: redis
@@ -32,14 +51,76 @@ spring:
       time-to-live: 60m
       cache-null-values: false
 
-logging:
-  level:
-    root: INFO
+  kafka:
+    bootstrap-servers: kafka:9092
+    producer:
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        spring.json.trusted.packages: '*'
 
-server:
-  port: 8082
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/techprocess-service-realm
 
-scheduler:
-  outbox:
-    batch-size: 10
-    millis-delay: 5000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: technical-library-service
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 50
+        register-health-indicator: true
+    instances:
+      libraryService:
+        baseConfig: default
+
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+    instances:
+      libraryService:
+        baseConfig: default
+
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+          - java.net.SocketTimeoutException
+    instances:
+      libraryService:
+        baseConfig: default

@@ -5,13 +5,11 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.config.TopicBuilder;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration
-@Profile("test")
 public class KafkaConfig {
     @Bean
     @ServiceConnection
@@ -21,7 +19,7 @@ public class KafkaConfig {
 
     @Bean
     public NewTopic materialTopic() {
-        return TopicBuilder.name(EventType.MATERIAL_SAVED.getTopicName())
+        return TopicBuilder.name(EventType.MATERIAL_CREATED.getTopicName())
                 .partitions(1)
                 .replicas(1)
                 .build();

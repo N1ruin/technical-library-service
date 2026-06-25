@@ -2,6 +2,7 @@ package by.niruin.library.exception.handler;
 
 import by.niruin.library.exception.EntityAlreadyExistException;
 import by.niruin.library.exception.EntityNotFoundException;
+import by.niruin.library.exception.FileUploadException;
 import by.niruin.library.model.error.ErrorResponse;
 import feign.FeignException;
 import org.apache.logging.log4j.LogManager;
@@ -27,7 +28,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleEntityNotFound(EntityNotFoundException exception) {
-        log.warn("Exception: {}", exception.getMessage());
+        log.error("Exception: {}", exception.getMessage());
 
         var errorResponse = new ErrorResponse("Entity not found", exception.getMessage(),
                 HttpStatus.NOT_FOUND.value());
@@ -37,7 +38,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException exception) {
-        log.warn("Exception: {}", exception.getMessage(), exception);
+        log.error("Exception: {}", exception.getMessage(), exception);
 
         var validationErrors = exception.getBindingResult()
                 .getFieldErrors()
@@ -52,7 +53,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EntityAlreadyExistException.class)
     public ResponseEntity<ErrorResponse> handleEntityAlready(EntityAlreadyExistException exception) {
-        log.warn("Exception: {}", exception.getMessage(), exception);
+        log.error("Exception: {}", exception.getMessage(), exception);
 
         var errorResponse = new ErrorResponse("Entity already exist", exception.getMessage(),
                 HttpStatus.CONFLICT.value());
@@ -82,9 +83,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(fallbackResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    @ExceptionHandler(FileUploadException.class)
+    public ResponseEntity<ErrorResponse> handleFileUploadException(FileUploadException exception) {
+        log.error("Exception: {}", exception.getMessage(), exception);
+
+        var errorResponse = new ErrorResponse("File upload error", exception.getMessage(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value());
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
-        log.warn("Exception: {}", exception.getMessage(), exception);
+        log.error("Exception: {}", exception.getMessage(), exception);
 
         var errorResponse = new ErrorResponse("Entity already exist in database", exception.getMessage(),
                 HttpStatus.CONFLICT.value());

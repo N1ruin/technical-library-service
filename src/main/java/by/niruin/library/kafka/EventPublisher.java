@@ -29,7 +29,7 @@ public class EventPublisher {
 
     public void publishEquipmentSavedEvent(Equipment equipment) {
         var equipmentCreatedEvent = outboxService.createOutboxRecord(
-                EventType.EQUIPMENT_SAVED,
+                EventType.EQUIPMENT_CREATED,
                 equipment,
                 equipmentMapper::toCreatedEvent);
         outboxService.save(equipmentCreatedEvent);
@@ -71,7 +71,7 @@ public class EventPublisher {
     }
 
     public void publishMaterialSavedEvent(Material material) {
-        var outboxRecord = outboxService.createOutboxRecord(EventType.MATERIAL_SAVED,
+        var outboxRecord = outboxService.createOutboxRecord(EventType.MATERIAL_CREATED,
                 material,
                 materialMapper::toSavedEvent);
         outboxService.save(outboxRecord);
@@ -92,7 +92,7 @@ public class EventPublisher {
     }
 
     public void publishInstructionSavedEvent(SafetyInstruction instruction) {
-        var outboxRecord = outboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED,
+        var outboxRecord = outboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED,
                 instruction,
                 instructionMapper::toCreatedEvent);
         outboxService.save(outboxRecord);

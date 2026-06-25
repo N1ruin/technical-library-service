@@ -55,7 +55,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
 
     @Test
     void createOutboxRecord_shouldCreateValidRecord() {
-        var eventType = EventType.SAFETY_INSTRUCTION_SAVED;
+        var eventType = EventType.SAFETY_INSTRUCTION_CREATED;
         var instruction = createTestInstruction();
 
         var outboxRecord = outboxService.createOutboxRecord(
@@ -78,7 +78,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
         var expectedPayload = objectMapper.writeValueAsString(expectedEvent);
 
         var outboxRecord = outboxService.createOutboxRecord(
-                EventType.SAFETY_INSTRUCTION_SAVED,
+                EventType.SAFETY_INSTRUCTION_CREATED,
                 instruction,
                 instructionMapper::toCreatedEvent
         );
@@ -98,7 +98,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
     @Test
     void findBatchRecords_shouldReturnRecordsInOrder() {
         var batchSize = schedulingOutboxProperties.getBatchSize();
-        var recordOne = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED);
+        var recordOne = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED);
         var recordTwo = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_UPDATED);
         var recordThree = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_DELETED);
 
@@ -116,7 +116,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
         var batchSize = schedulingOutboxProperties.getBatchSize();
 
         for (int i = 0; i < batchSize - 5; i++) {
-            createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED);
+            createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED);
         }
 
         var batchRecords = outboxService.findBatchRecords(batchSize);
@@ -127,7 +127,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
 
     @Test
     void deleteAll_shouldRemoveAllGivenRecords() {
-        var record1 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED);
+        var record1 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED);
         var record2 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_UPDATED);
         var record3 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_DELETED);
         var recordsToDelete = List.of(record1, record2);
@@ -141,7 +141,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
 
     @Test
     void deleteAll_shouldDoNothing_whenEmptyList() {
-        var record = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED);
+        var record = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED);
         List<TransactionOutboxRecord> emptyList = List.of(record);
 
         outboxService.deleteAll(emptyList);
@@ -159,7 +159,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
         var batchSize = schedulingOutboxProperties.getBatchSize();
         var beforeSave = Instant.now();
         Thread.sleep(2);
-        createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED);
+        createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED);
         Thread.sleep(2);
         var afterSave = Instant.now();
 
@@ -167,7 +167,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
 
         assertNotNull(batchRecords);
         assertEquals(1, batchRecords.size());
-        var savedRecord = batchRecords.get(0);
+        var savedRecord = batchRecords.getFirst();
         assertNotNull(savedRecord.getTimestamp());
         assertTrue(savedRecord.getTimestamp().isAfter(beforeSave) || savedRecord.getTimestamp().equals(beforeSave));
         assertTrue(savedRecord.getTimestamp().isBefore(afterSave) || savedRecord.getTimestamp().equals(afterSave));
@@ -179,7 +179,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
         Thread.sleep(1);
 
         var outboxRecord = outboxService.createOutboxRecord(
-                EventType.SAFETY_INSTRUCTION_SAVED,
+                EventType.SAFETY_INSTRUCTION_CREATED,
                 createTestInstruction(),
                 instructionMapper::toCreatedEvent
         );
@@ -194,7 +194,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
 
     @Test
     void deleteAll_shouldBeTransactional() {
-        var record1 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED);
+        var record1 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED);
         var record2 = createAndSaveOutboxRecord(EventType.SAFETY_INSTRUCTION_UPDATED);
         var recordsToDelete = List.of(record1, record2);
 
@@ -223,7 +223,7 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
         var instruction = createTestInstruction();
 
         var savedRecord = outboxService.createOutboxRecord(
-                EventType.SAFETY_INSTRUCTION_SAVED,
+                EventType.SAFETY_INSTRUCTION_CREATED,
                 instruction,
                 instructionMapper::toCreatedEvent
         );
@@ -240,14 +240,14 @@ public class TransactionOutboxServiceIT extends BaseIntegrationTest {
                 instructionMapper::toDeletedEvent
         );
 
-        assertEquals(EventType.SAFETY_INSTRUCTION_SAVED, savedRecord.getEventType());
+        assertEquals(EventType.SAFETY_INSTRUCTION_CREATED, savedRecord.getEventType());
         assertEquals(EventType.SAFETY_INSTRUCTION_UPDATED, updatedRecord.getEventType());
         assertEquals(EventType.SAFETY_INSTRUCTION_DELETED, deletedRecord.getEventType());
     }
 
     private TransactionOutboxRecord createTestOutboxRecord() {
         var record = new TransactionOutboxRecord();
-        record.setEventType(EventType.SAFETY_INSTRUCTION_SAVED);
+        record.setEventType(EventType.SAFETY_INSTRUCTION_CREATED);
         record.setPayload("testPayload");
         record.setTimestamp(Instant.now());
 

@@ -79,7 +79,7 @@ public class OutboxRecordProducerIT extends BaseIntegrationTest {
 
         return Stream.of(instructionOne, instructionTwo, instructionThree)
                 .map(instruction -> outboxService.createOutboxRecord(
-                        EventType.SAFETY_INSTRUCTION_SAVED,
+                        EventType.SAFETY_INSTRUCTION_CREATED,
                         instruction,
                         instructionMapper::toCreatedEvent))
                 .toList();
@@ -94,7 +94,7 @@ public class OutboxRecordProducerIT extends BaseIntegrationTest {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         var kafkaConsumer = new KafkaConsumer<String, String>(props);
-        kafkaConsumer.subscribe(List.of(EventType.SAFETY_INSTRUCTION_SAVED.getTopicName()));
+        kafkaConsumer.subscribe(List.of(EventType.SAFETY_INSTRUCTION_CREATED.getTopicName()));
         kafkaConsumer.poll(Duration.ofMillis(1));
         return kafkaConsumer;
     }

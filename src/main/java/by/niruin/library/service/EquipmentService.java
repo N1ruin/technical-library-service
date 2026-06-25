@@ -8,6 +8,9 @@ import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.equipment.UpdateEquipmentRequest;
 import by.niruin.library.repository.EquipmentRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -34,6 +37,9 @@ public class EquipmentService {
     }
 
     @CachePut(value = "equipment", key = "#result.id")
+    @CircuitBreaker(name = "file-service", fallbackMethod = "uploadFileFallback")
+    @Retry(name = "fileService")
+    @TimeLimiter(name = "fileService")
     public Equipment save(Equipment equipment, MultipartFile file) {
         final String fileName = uploadFile(file);
 
@@ -65,6 +71,8 @@ public class EquipmentService {
     }
 
     @CachePut(value = "equipment", key = "#id")
+    @Retry(name = "fileService")
+    @TimeLimiter(name = "fileService")
     public Equipment update(Long id, UpdateEquipmentRequest request) {
         final String newFileName = uploadFile(request.file());
 

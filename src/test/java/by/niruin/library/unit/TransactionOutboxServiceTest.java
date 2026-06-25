@@ -39,7 +39,7 @@ class TransactionOutboxServiceTest {
     void save_shouldRepositorySaveInvocation() {
         var outboxRecord = new TransactionOutboxRecord();
         outboxRecord.setPayload("Test");
-        outboxRecord.setEventType(EventType.EQUIPMENT_SAVED);
+        outboxRecord.setEventType(EventType.EQUIPMENT_CREATED);
         when(outboxRepository.save(outboxRecord)).thenReturn(outboxRecord);
 
         transactionOutboxService.save(outboxRecord);
@@ -57,10 +57,10 @@ class TransactionOutboxServiceTest {
         when(objectMapper.writeValueAsString(event)).thenReturn("payload");
         when(mapperMock.toCreatedEvent(instruction)).thenReturn(event);
 
-        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_SAVED,
+        var outboxRecord = transactionOutboxService.createOutboxRecord(EventType.SAFETY_INSTRUCTION_CREATED,
                 instruction, mapperMock::toCreatedEvent);
 
-        assertThat(outboxRecord.getEventType()).isEqualTo(EventType.SAFETY_INSTRUCTION_SAVED);
+        assertThat(outboxRecord.getEventType()).isEqualTo(EventType.SAFETY_INSTRUCTION_CREATED);
         assertThat(outboxRecord.getPayload()).isEqualTo("payload");
         assertThat(outboxRecord.getTimestamp().isBefore(Instant.now()));
         verify(objectMapper).writeValueAsString(any());
@@ -87,7 +87,7 @@ class TransactionOutboxServiceTest {
     void deleteAll_shouldRepositoryInvocation() {
         var outboxRecord = new TransactionOutboxRecord();
         outboxRecord.setPayload("testPayload");
-        outboxRecord.setEventType(EventType.SAFETY_INSTRUCTION_SAVED);
+        outboxRecord.setEventType(EventType.SAFETY_INSTRUCTION_CREATED);
         var list = List.of(outboxRecord);
         doAnswer(invocation -> {
             Consumer<?> action = invocation.getArgument(0);
