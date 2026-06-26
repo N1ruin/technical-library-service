@@ -17,7 +17,7 @@ public class FileClientFallbackFactory implements FallbackFactory<FileClient> {
                         cause,
                         feignException.status());
             }
-            throw new FileUploadException("File service is temporarily unavailable", cause);
+            throw new FileUploadException("File service is temporarily unavailable", cause, 500);
         };
     }
 }

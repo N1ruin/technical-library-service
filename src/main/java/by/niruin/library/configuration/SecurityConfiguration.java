@@ -14,8 +14,8 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfiguration {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
-        return http.authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**").hasAuthority("ADMIN")
+        return http.authorizeHttpRequests(auth ->
+                        auth.requestMatchers("/actuator/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 ->
                         oauth2.jwt(Customizer.withDefaults()))
