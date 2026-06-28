@@ -95,16 +95,3 @@ resilience4j:
     instances:
       libraryService:
         baseConfig: default
-
-  retry:
-    configs:
-      default:
-        max-attempts: 3
-        wait-duration: 1s
-        retry-exceptions:
-          - org.springframework.web.client.HttpServerErrorException
-          - java.io.IOException
-          - java.net.SocketTimeoutException
-    instances:
-      libraryService:
-        baseConfig: default

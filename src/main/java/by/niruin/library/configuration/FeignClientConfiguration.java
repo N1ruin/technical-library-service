@@ -22,9 +22,4 @@ public class FeignClientConfiguration {
             }
         };
     }
-
-    @Bean
-    public CircuitBreakerNameResolver circuitBreakerNameResolver() {
-        return ((feignClientName, target, method) -> feignClientName);
-    }
 }
