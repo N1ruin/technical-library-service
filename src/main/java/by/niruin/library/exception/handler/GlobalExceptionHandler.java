@@ -65,14 +65,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleFeignException(FeignException exception) {
         int status = exception.status() >= 400 ? exception.status() : HttpStatus.INTERNAL_SERVER_ERROR.value();
 
-        ErrorResponse errorResponse;
         if (exception.responseBody().isPresent()) {
             try {
-                errorResponse = parseFeignException(exception);
-
+                log.error("OpenFeign exception. {}", parseFeignException(exception));
+                ErrorResponse errorResponse = new ErrorResponse("File service error", exception.getMessage(),
+                        HttpStatus.CONFLICT.value());
                 return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(status));
             } catch (Exception e) {
-                log.warn("Parsing JSON error from feign exception", e);
+                log.error("Parsing JSON error from feign exception", e);
             }
         }
 

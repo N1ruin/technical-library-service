@@ -36,8 +36,6 @@ public class EquipmentService {
     }
 
     @CachePut(value = "equipment", key = "#result.id")
-    @CircuitBreaker(name = "libraryService")
-    @Retry(name = "libraryService")
     public Equipment save(Equipment equipment, MultipartFile file) {
         final String fileName = uploadFile(file);
 
@@ -69,8 +67,6 @@ public class EquipmentService {
     }
 
     @CachePut(value = "equipment", key = "#id")
-    @CircuitBreaker(name = "libraryService")
-    @Retry(name = "libraryService")
     public Equipment update(Long id, UpdateEquipmentRequest request) {
         final String newFileName = uploadFile(request.file());
 
