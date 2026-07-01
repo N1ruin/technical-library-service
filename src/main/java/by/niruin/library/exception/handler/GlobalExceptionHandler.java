@@ -28,9 +28,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleEntityNotFound(EntityNotFoundException exception) {
-        log.error("Exception: {}", exception.getMessage());
+        log.info("Exception: {}", exception.getMessage());
 
-        var errorResponse = new ErrorResponse("Entity not found", exception.getMessage(),
+        var errorResponse = new ErrorResponse("Entity not found", "Entity not found or deleted",
                 HttpStatus.NOT_FOUND.value());
 
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException exception) {
-        log.error("Exception: {}", exception.getMessage(), exception);
+        log.info("Exception: {}", exception.getMessage(), exception);
 
         var validationErrors = exception.getBindingResult()
                 .getFieldErrors()
@@ -53,9 +53,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EntityAlreadyExistException.class)
     public ResponseEntity<ErrorResponse> handleEntityAlready(EntityAlreadyExistException exception) {
-        log.error("Exception: {}", exception.getMessage(), exception);
+        log.info("Exception: {}", exception.getMessage(), exception);
 
-        var errorResponse = new ErrorResponse("Entity already exist", exception.getMessage(),
+        var errorResponse = new ErrorResponse("Data conflict", "Entity already exist",
                 HttpStatus.CONFLICT.value());
 
         return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
@@ -67,12 +67,13 @@ public class GlobalExceptionHandler {
 
         if (exception.responseBody().isPresent()) {
             try {
-                log.error("OpenFeign exception. {}", parseFeignException(exception));
-                ErrorResponse errorResponse = new ErrorResponse("File service error", exception.getMessage(),
+                log.info("OpenFeign exception. {}", parseFeignException(exception));
+                var errorResponse = new ErrorResponse("File service error", "File uploading error." +
+                        " Please, try again later",
                         HttpStatus.CONFLICT.value());
                 return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(status));
             } catch (Exception e) {
-                log.error("Parsing JSON error from feign exception", e);
+                log.info("Parsing JSON error from feign exception", e);
             }
         }
 
@@ -85,27 +86,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FileUploadException.class)
     public ResponseEntity<ErrorResponse> handleFileUploadException(FileUploadException exception) {
-        log.error("Exception: {}", exception.getMessage(), exception);
+        log.info("Exception: {}", exception.getMessage(), exception);
 
-        var errorResponse = new ErrorResponse("File upload error", exception.getMessage(),
-                exception.getHttpStatus());
+        var errorResponse = new ErrorResponse("File upload error", "File uploading error." +
+                " Please, try again later", exception.getHttpStatus());
 
         return ResponseEntity.status(exception.getHttpStatus()).body(errorResponse);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
-        log.error("Exception: {}", exception.getMessage(), exception);
+        log.info("Exception: {}", exception.getMessage(), exception);
 
-        var errorResponse = new ErrorResponse("Entity already exist in database", exception.getMessage(),
-                HttpStatus.CONFLICT.value());
+        var errorResponse = new ErrorResponse("Data error", "Incorrect data", HttpStatus.CONFLICT.value());
 
         return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception exception) {
-        log.error("Unknown exception occurred: {}", exception.getMessage(), exception);
+        log.info("Unknown exception occurred: {}", exception.getMessage(), exception);
 
         var errorResponse = new ErrorResponse("Internal Server Error",
                 "An unexpected error occurred. Please try again later.",

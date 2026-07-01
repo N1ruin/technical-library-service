@@ -1,97 +1,23 @@
-server:
-  port: 8081
-
-logging:
-  level:
-    root: INFO
-    by.niruin.library: INFO
-
-scheduler:
-  outbox:
-    batch-size: 10
-    millis-delay: 5000
-
 spring:
   application:
     name: technical-library-service
+  config:
+    import: optional:configserver:http://config-server:8888
 
-  cloud:
-    openfeign:
-      circuitbreaker:
-        enabled: true
-
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://postgres-library:5432/library_db
-    username: root
-    password: root
-
-  jpa:
-    show-sql: false
-    properties:
-      hibernate:
-        default_schema: library
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-
-  data:
-    redis:
-      host: redis
-      port: 6379
-
-  cache:
-    type: redis
-    redis:
-      time-to-live: 60m
-      cache-null-values: false
-
-  kafka:
-    bootstrap-servers: kafka:9092
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
-      properties:
-        spring.json.trusted.packages: '*'
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://keycloak:8080/realms/techprocess-service-realm
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://discovery-server:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
-      base-path: /actuator
+        include: health,info,refresh
   endpoint:
     health:
       show-details: always
-      show-components: always
-      probes:
-        enabled: true
-    metrics:
-      enabled: true
-    prometheus:
-      enabled: true
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-    tags:
-      application: technical-library-service
-
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        sliding-window-size: 10
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 5s
-        permitted-number-of-calls-in-half-open-state: 3
-        slow-call-duration-threshold: 2s
-        slow-call-rate-threshold: 50
-        register-health-indicator: true
-    instances:
-      libraryService:
-        baseConfig: default

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @FeignClient(name = "file-service",
-        path = "/api/v1/file-service/files/images",
+        path = "${file-service.path}}",
         url = "${file-service.url}",
         fallbackFactory = FileClientFallbackFactory.class,
         configuration = FeignClientConfiguration.class)

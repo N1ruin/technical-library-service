@@ -9,8 +9,6 @@ import by.niruin.library.model.material.CreateMaterialResponse;
 import by.niruin.library.model.material.MaterialDto;
 import org.mapstruct.Mapper;
 
-import java.util.List;
-
 @Mapper(componentModel = "spring", uses = InstantMapper.class)
 public interface MaterialMapper {
     Material toMaterial(CreateMaterialRequest request);
