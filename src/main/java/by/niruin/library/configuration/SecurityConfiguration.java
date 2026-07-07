@@ -15,7 +15,10 @@ public class SecurityConfiguration {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticatonConverter jwtAuthenticatonConverter) {
         return http.authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/actuator/**").hasAuthority("ADMIN")
+                        auth.requestMatchers("/actuator/prometheus").permitAll()
+                                .requestMatchers("/actuator/health/liveness").permitAll()
+                                .requestMatchers("/actuator/health/readiness").permitAll()
+                                .requestMatchers("/actuator/**").hasAuthority("ADMIN")
                                 .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 ->
                         oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticatonConverter)))
