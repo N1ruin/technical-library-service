@@ -18,7 +18,7 @@ public class SecurityConfiguration {
                         auth.requestMatchers("/actuator/prometheus").permitAll()
                                 .requestMatchers("/actuator/health/liveness").permitAll()
                                 .requestMatchers("/actuator/health/readiness").permitAll()
-                                .requestMatchers("/actuator/**").hasAuthority("ADMIN")
+                                .requestMatchers("/actuator/**").hasRole("ADMIN")
                                 .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 ->
                         oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticatonConverter)))
