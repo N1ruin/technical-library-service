@@ -16,7 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("api/v1/library-service/materials")
+@RequestMapping("/api/v1/library-service/materials")
 public class MaterialController {
     private final MaterialService materialService;
     private final MaterialMapper materialMapper;
