@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -112,6 +113,17 @@ public class GlobalExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR.value());
 
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AuthorizationDeniedException exception) {
+        log.warn("Access denied: {}", exception.getMessage());
+
+        var errorResponse = new ErrorResponse("Forbidden",
+                "Access Denied",
+                HttpStatus.FORBIDDEN.value());
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
     }
 
     private ErrorResponse parseFeignException(FeignException exception) {
