@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
@@ -48,9 +49,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void saveInstruction_shouldReturnCreatedInstruction() throws Exception {
         var requestBuilder = post("/api/v1/library-service/safety-instructions")
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -67,9 +68,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void saveInstruction_throwsEntityAlreadyExist() throws Exception {
         var requestBuilder = post("/api/v1/library-service/safety-instructions")
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
         var instruction = new SafetyInstruction();
@@ -90,9 +91,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void saveInstruction_throwsValidationException() throws Exception {
         var requestBuilder = post("/api/v1/library-service/safety-instructions")
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_INSTRUCTION_JSON);
 
@@ -169,10 +170,10 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void deleteById_success() throws Exception {
         var instructionId = safetyInstructionService.save(createInstruction()).getId();
-        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", instructionId)
-                .with(jwt());
+        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", instructionId);
         outboxRepository.deleteAll();
 
         mockMvc.perform(requestBuilder)
@@ -185,10 +186,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void deleteById_shouldReturnNotFound_whenMaterialDoesNotExist() throws Exception {
-        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", 1L)
-                .with(jwt());
-
+        var requestBuilder = delete("/api/v1/library-service/safety-instructions/{id}", 1L);
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
                         status().isNotFound(),
@@ -201,13 +201,13 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_success() throws Exception {
         var instruction = safetyInstructionService.save(createInstruction());
         instruction.setNumber("111");
         instruction.setDescription("Тестовое описание 123");
         outboxRepository.deleteAll();
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", instruction.getId())
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -229,9 +229,9 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_throwsEntityNotFound() throws Exception {
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 999L)
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_INSTRUCTION_JSON);
 
@@ -247,10 +247,10 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_throwsValidationException() throws Exception {
         safetyInstructionService.save(createInstruction());
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", 1L)
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_INSTRUCTION_JSON);
         outboxRepository.deleteAll();
@@ -267,6 +267,7 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_throwsEntityAlreadyExist() throws Exception {
         var first = new SafetyInstruction();
         first.setNumber("111");
@@ -280,7 +281,6 @@ public class SafetyInstructionControllerIT extends BaseIntegrationTest {
         outboxRepository.deleteAll();
 
         var requestBuilder = put("/api/v1/library-service/safety-instructions/{id}", saved.getId())
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {

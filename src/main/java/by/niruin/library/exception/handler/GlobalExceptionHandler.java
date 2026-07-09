@@ -70,7 +70,7 @@ public class GlobalExceptionHandler {
                 log.info("OpenFeign exception. {}", parseFeignException(exception));
                 var errorResponse = new ErrorResponse("File service error", "File uploading error." +
                         " Please, try again later",
-                        HttpStatus.CONFLICT.value());
+                        status);
                 return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(status));
             } catch (Exception e) {
                 log.info("Parsing JSON error from feign exception", e);

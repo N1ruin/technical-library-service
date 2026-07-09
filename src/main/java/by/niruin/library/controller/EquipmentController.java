@@ -14,6 +14,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,6 +29,7 @@ public class EquipmentController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public ResponseEntity<CreateEquipmentResponse> createEquipment(@Valid @ModelAttribute CreateEquipmentRequest request) {
         var equipment = equipmentMapper.toEquipment(request);
 
@@ -59,6 +61,7 @@ public class EquipmentController {
     }
 
     @PutMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public ResponseEntity<EquipmentDto> update(@PathVariable Long id,
                                                @Valid @ModelAttribute UpdateEquipmentRequest request) {
         var updated = equipmentService.update(id, request);
@@ -70,6 +73,7 @@ public class EquipmentController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public void deleteById(@PathVariable Long id) {
         equipmentService.delete(id);
     }

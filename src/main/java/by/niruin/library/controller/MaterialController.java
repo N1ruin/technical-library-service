@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -27,6 +28,7 @@ public class MaterialController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public ResponseEntity<CreateMaterialResponse> createMaterial(@Valid @RequestBody CreateMaterialRequest request) {
         var material = materialMapper.toMaterial(request);
 
@@ -58,6 +60,7 @@ public class MaterialController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public ResponseEntity<MaterialDto> update(@PathVariable Long id,
                                               @Valid @RequestBody UpdateMaterialRequest request) {
         var updated = materialService.update(id, request);
@@ -68,6 +71,7 @@ public class MaterialController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteById(@PathVariable Long id) {
         materialService.deleteById(id);

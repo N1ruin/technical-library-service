@@ -18,6 +18,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -68,6 +69,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void save_shouldReturnSavedEquipment() throws Exception {
         var multipartFile = getValidMultipartFile();
         var generatedFileName = UUID.randomUUID() + ".png";
@@ -82,7 +84,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         .withBody(responseBody)));
 
         mockMvc.perform(multipart(HttpMethod.POST, "/api/v1/library-service/equipments")
-                        .with(jwt())
                         .file(multipartFile)
                         .param("name", "Гайковерт")
                         .param("index", "2125PTi")
@@ -100,11 +101,11 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void save_shouldReturnSavedEquipmentWithoutFile() throws Exception {
         var equipment = getEquipment();
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
-                        .with(jwt())
                         .param("name", equipment.getName())
                         .param("index", equipment.getIndex())
                         .param("description", equipment.getDescription())
@@ -122,6 +123,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void save_throwsInvalidFileFormatException() throws Exception {
         var equipment = getEquipment();
         var multipartFile = getInvalidFormatMultipartFile();
@@ -136,7 +138,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                         .withBody(responseJson)));
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
-                        .with(jwt())
                         .file(multipartFile)
                         .param("name", equipment.getName())
                         .param("index", equipment.getIndex())
@@ -152,11 +153,11 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void save_throwsValidationException() throws Exception {
         var multipartFile = getValidMultipartFile();
 
         mockMvc.perform(multipart("/api/v1/library-service/equipments")
-                        .with(jwt())
                         .file(multipartFile)
                         .param("name", "fgdasfads3215432fdsafasvasfasdwqrweq$#%^$@@#")
                         .param("index", "||/fdas123")
@@ -247,6 +248,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_textOnly_shouldKeepImage() throws Exception {
         var equipment = getEquipment();
         var generatedFileName = UUID.randomUUID() + ".png";
@@ -255,7 +257,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         outboxRepository.deleteAll();
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", equipment.getId())
-                        .with(jwt())
                         .param("name", "New name")
                         .param("index", "New Index")
                         .param("description", "New Description")
@@ -271,6 +272,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_replaceFile_success() throws Exception {
         var existingFileName = UUID.randomUUID() + ".png";
         var equipment = getEquipment();
@@ -295,7 +297,6 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
                                 .withBody(responseJson)));
 
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", saved.getId())
-                        .with(jwt())
                         .param("name", saved.getName())
                         .param("index", saved.getIndex())
                         .param("description", saved.getDescription())
@@ -313,9 +314,9 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_shouldReturnErrorResponse_dueToNotFoundException() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 1L)
-                        .with(jwt())
                         .param("name", "New name")
                         .param("index", "New Index")
                         .param("description", "New Description")
@@ -330,9 +331,9 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_shouldThrowValidationEx() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PUT, "/api/v1/library-service/equipments/{id}", 999L)
-                        .with(jwt())
                         .param("name", "New name321&%$@#()*$()#@")
                         .param("index", "0432fdsZop^%#$@)(")
                         .param("description", "{}{][)_}")
@@ -347,6 +348,7 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void delete_success() throws Exception {
         var equipment = getEquipment();
         var multipartFile = getValidMultipartFile();
@@ -361,18 +363,16 @@ public class EquipmentControllerIT extends BaseIntegrationTest {
         var saved = equipmentService.save(equipment, multipartFile);
         outboxRepository.deleteAll();
 
-        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId())
-                        .with(jwt()))
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", saved.getId()))
                 .andExpect(status().isNoContent());
 
         assertThat(outboxRepository.findAll()).hasSize(2);
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void delete_shouldReturnErrorResponse_dueToNotFoundException() throws Exception {
-        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", 1L)
-                .with(jwt());
-
+        var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/library-service/equipments/{id}", 1L);
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
                         status().isNotFound(),

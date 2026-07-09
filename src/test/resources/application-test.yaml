@@ -1,6 +1,45 @@
-logging:
-  level:
-    root: DEBUG
+spring:
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+
+  kafka:
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        spring.json.trusted.packages: '*'
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        default_schema: library
+
+  cache:
+    type: redis
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/test-realm
 
 file-service:
   url: http://localhost:9999
+  path: /api/v1/file-service/files/images
+
+eureka:
+  client:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+
+scheduler:
+  outbox:
+    batch-size: 10
+    millis-delay: 5000

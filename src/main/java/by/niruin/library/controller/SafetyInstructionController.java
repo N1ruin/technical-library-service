@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,6 +29,7 @@ public class SafetyInstructionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public ResponseEntity<CreateSafetyInstructionResponse> createMaterial(@Valid @RequestBody CreateSafetyInstructionRequest request) {
         var material = safetyInstructionMapper.toInstruction(request);
 
@@ -59,6 +61,7 @@ public class SafetyInstructionController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public ResponseEntity<SafetyInstructionDto> update(@PathVariable Long id,
                                                        @Valid @RequestBody UpdateSafetyInstructionRequest request) {
         var updated = safetyInstructionService.update(id, request);
@@ -70,6 +73,7 @@ public class SafetyInstructionController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENGINEER')")
     public void deleteById(@PathVariable Long id) {
         safetyInstructionService.deleteById(id);
     }

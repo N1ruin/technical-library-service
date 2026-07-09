@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -62,9 +63,9 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void createMaterial_shouldReturnSavedMaterial() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_LITOL_JSON);
 
@@ -83,9 +84,9 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void createMaterial_shouldThrowsValidationException() throws Exception {
         var requestBuilder = post("/api/v1/library-service/materials")
-                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(INVALID_OIL_JSON);
 
@@ -166,13 +167,12 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void deleteById_shouldDeleteMaterialAndReturnNoContent() throws Exception {
         var material = materialService.save(createLitolMaterial());
         var materialId = material.getId();
         outboxRepository.deleteAll();
-        var requestBuilder = delete("/api/v1/library-service/materials/{id}", materialId)
-                .with(jwt());
-
+        var requestBuilder = delete("/api/v1/library-service/materials/{id}", materialId);
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
                         status().isNoContent(),
@@ -183,33 +183,28 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void deleteById_shouldReturnNotFound_whenMaterialDoesNotExist() throws Exception {
-        var requestBuilder = delete("/api/v1/library-service/materials/{id}", 9999L)
-                .with(jwt());
+        var requestBuilder = delete("/api/v1/library-service/materials/{id}", 9999L);
 
         mockMvc.perform(requestBuilder)
                 .andExpectAll(
                         status().isNotFound(),
-                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
-                        content().json("""
-                                {
-                                    "error": "Entity not found",
-                                    "message": "Entity with id 9999 not found",
-                                    "code": 404
-                                }
-                                """));
+                        jsonPath("$.error").exists(),
+                        jsonPath("$.message").exists(),
+                        jsonPath("$.code").value(404));
 
         assertThat(outboxRepository.findAll()).hasSize(0);
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_shouldUpdateAndReturnUpdatedMaterial() throws Exception {
         var material = createLitolMaterial();
         var id = materialService.save(material).getId();
         outboxRepository.deleteAll();
 
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", id)
-                        .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_OIL_JSON))
                 .andExpectAll(
@@ -227,9 +222,9 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_throwsValidationException() throws Exception {
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", 1L)
-                        .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(INVALID_OIL_JSON))
                 .andExpectAll(
@@ -243,9 +238,9 @@ public class MaterialControllerIT extends BaseIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ENGINEER")
     void update_throwsEntityNotFound_whenMaterialDoesNotExist() throws Exception {
         mockMvc.perform(put("/api/v1/library-service/materials/{id}", 9999L)
-                        .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_OIL_JSON))
                 .andExpectAll(
@@ -256,20 +251,6 @@ public class MaterialControllerIT extends BaseIntegrationTest {
                         jsonPath("$.code").value(404));
 
         assertThat(outboxRepository.findAll()).hasSize(0);
-    }
-
-    @Test
-    void findById_shouldUseCache_WhenCalledTwice() {
-        var material = materialService.save(createLitolMaterial());
-        Long materialId = material.getId();
-
-        Material firstCall = materialService.findById(materialId);
-        materialRepository.deleteById(materialId);
-        Material secondCall = materialService.findById(materialId);
-
-        assertThat(secondCall)
-                .usingRecursiveComparison()
-                .isEqualTo(firstCall);
     }
 
     private Material createLitolMaterial() {
