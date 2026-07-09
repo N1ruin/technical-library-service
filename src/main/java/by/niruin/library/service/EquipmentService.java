@@ -15,8 +15,6 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -108,14 +106,7 @@ public class EquipmentService {
     }
 
     private String uploadFile(MultipartFile file) {
-        if (!hasImage(file)) return null;
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        log.warn("=== AUTH TYPE: {}, PRINCIPAL: {}",
-                auth != null ? auth.getClass().getSimpleName() : "NULL",
-                auth != null ? auth.getPrincipal() : "N/A");
-
-        return fileClient.uploadImage(file).fileName();
+        return hasImage(file) ? fileClient.uploadImage(file).fileName() : null;
     }
 
     private boolean hasImage(MultipartFile multipartFile) {
