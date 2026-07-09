@@ -8,13 +8,15 @@ import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.equipment.UpdateEquipmentRequest;
 import by.niruin.library.repository.EquipmentRepository;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -22,6 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class EquipmentService {
+    private static final Logger log = LogManager.getLogger(EquipmentService.class);
+
     private final FileClient fileClient;
     private final EquipmentRepository equipmentRepository;
     private final TransactionTemplate transactionTemplate;
@@ -104,7 +108,14 @@ public class EquipmentService {
     }
 
     private String uploadFile(MultipartFile file) {
-        return hasImage(file) ? fileClient.uploadImage(file).fileName() : null;
+        if (!hasImage(file)) return null;
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        log.warn("=== AUTH TYPE: {}, PRINCIPAL: {}",
+                auth != null ? auth.getClass().getSimpleName() : "NULL",
+                auth != null ? auth.getPrincipal() : "N/A");
+
+        return fileClient.uploadImage(file).fileName();
     }
 
     private boolean hasImage(MultipartFile multipartFile) {
