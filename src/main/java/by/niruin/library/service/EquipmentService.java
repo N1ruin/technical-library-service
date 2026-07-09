@@ -8,8 +8,6 @@ import by.niruin.library.exception.EntityNotFoundException;
 import by.niruin.library.kafka.EventPublisher;
 import by.niruin.library.model.equipment.UpdateEquipmentRequest;
 import by.niruin.library.repository.EquipmentRepository;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -22,8 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class EquipmentService {
-    private static final Logger log = LogManager.getLogger(EquipmentService.class);
-
     private final FileClient fileClient;
     private final EquipmentRepository equipmentRepository;
     private final TransactionTemplate transactionTemplate;
