@@ -10,7 +10,7 @@ public enum EventType {
     MATERIAL_CREATED("technical-library-topic"),
     MATERIAL_UPDATED(MATERIAL_CREATED.getTopicName()),
     MATERIAL_DELETED(MATERIAL_CREATED.getTopicName()),
-    FILE_MOVE_TO_PERMANENT_STORAGE("file-topic"),
+    FILE_MOVE_TO_PERMANENT_STORAGE("file-service-topic"),
     FILE_DELETED_EVENT(FILE_MOVE_TO_PERMANENT_STORAGE.getTopicName());
 
     private final String topicName;
